@@ -1,1 +1,1 @@
-You will need MySQLConnector, get it at http://www.mysql.com/products/connector/j/. Second, change database name, username and password for MySQL in StaticCommands.java, and finally, insert data from static.sql (we won't explain you how to that...sorry:(
+You will need MySQLConnector, get it at http://www.mysql.com/products/connector/j/. Secondly, change database name, username and password for MySQL in StaticCommands.java, and finally, insert data from static.sql (we won't explain you how to that...sorry:(
