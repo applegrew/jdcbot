@@ -1,0 +1,7 @@
+-- v0.6 2005-09-12 --
+* Added UserMenager and User classes for easier work with users
+* Added MySQL support
+* Added trigger on search request and returning searvh results (both for active and passive search)
+* Added KickUser method
+* Added WebPageFetcher and GoogleCalculation classes
+* Fixed some small bugs

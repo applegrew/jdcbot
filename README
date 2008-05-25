@@ -1,0 +1,33 @@
+	jDCBot is a framework for writing your own bot. It is a good idea to understand classes here, since you will be working with them while writing your bot. I provided simple ExampleBot class that extends jDCBot abstract class. That should be start location to look at. Currently, there are several triggers you could override:
+	protected void onConnect(){}
+    	protected void onDisconnect(){}
+	protected void onPublicMessage(String user,String message){}
+	protected void onJoin(String user){}
+	protected void onQuit(String user){}
+	protected void onPrivateMessage(String user,String message){}
+	protected void onChannelMessage(String user,String channel,String message){}
+	protected void onActiveSearch(String IP,int port,boolean isSizeRestricted,boolean isMinimumSize,long size,int dataType,String searchPattern){}
+	protected void onPassiveSearch(String user,boolean isSizeRestricted,boolean isMinimumSize,long size,int dataType,String searchPattern){}
+which should be enough to start with.
+
+	List of methods you could use (noy including one using some other classes):
+	public final void connect(String hostname,int port)
+	public final void quit()
+	public final boolean UserExist(String user)
+	public final User GetUserInfo(String user)
+	public final void SendPublicMessage(String message)
+	public final void SendPrivateMessage(String user, String message)
+	public final void KickUser(String user)
+	public final void SendAll(String message,long timeout)
+	public final void SendActiveSearchReturn(String IP,int port,boolean isDir,String name,long size,int free_slots)
+	public final void SendPassiveSearchReturn(String user,boolean isDir,String name,long size,int free_slots)
+but this list isn't complete (there are some more methods, but look at a source).
+
+	I added TimerThread abstract class that generates onTimer() event and you should extend it (example is provided through simple FloodMessageThread class) every time you need new and different onTimer() event.
+	Also, there is WebPageFetcher abstract class that is extended by GoogleCalculation (when you run your bot and type e.g. '+calc 1+2*3' on main chat, it should react and output result) to show how to use it.
+	There is MySQLWork abstract class (very simple one) that is extended by StaticCommands class that use one table in database to search for commands with static output in it and displays its output on main chat (you could test it with +help, but first read SQL).
+	jDCBot is tested with several hubs and is working nice (problem could be with Verlihub which use same starting of the command - plus sign). If you have any problems, try debugging connect() method of jDCBot class (currently there is no debugging printing on standard output). If you find any bugs, we appriciate for letting us know.
+	jDCBot is publihed under GNU licence, so you are encouraged to take parts in developing it (and it would be nice to send us your improvements so we could keep it centralized). Any questions, wishes, bugs send (for now) at:
+branko.kokanovic[at]gmail.com
+
+I hope you will have nice developing with jDCBot,Kokanovic Branko and Milos Grbic
