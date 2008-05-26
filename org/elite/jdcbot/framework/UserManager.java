@@ -18,7 +18,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-package org.elite.jdcbot;
+package org.elite.jdcbot.framework;
 
 import java.util.*;
 
@@ -34,11 +34,11 @@ import java.util.*;
  * @author  Kokanovic Branko
  * @version    0.6
  */
-public class UserMenager {
+public class UserManager {
 	private Vector users;
 	private jDCBot _bot;
 	
-	public UserMenager(jDCBot bot){
+	public UserManager(jDCBot bot){
 		_bot=bot;
 		users=new Vector();
 	}

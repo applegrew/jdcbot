@@ -18,7 +18,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-package org.elite.jdcbot;
+package org.elite.jdcbot.util;
 
 /*
  * From http://www.warnertechnology.com/Computers/Articles/JavaMOSXS/javacode1.shtml and
@@ -80,8 +80,8 @@ public abstract class WebPageFetcher {
 			//google won't let us in without this property
 			conn.setRequestProperty("User-Agent", "Mozilla/4.x");
 			BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-			// due to the nature of sockets, you probably won’t get all the text back with one call
-			// so we continue to call read until we get -1, which means we’re done,
+			// due to the nature of sockets, you probably wont get all the text back with one call
+			// so we continue to call read until we get -1, which means were done,
 			// or until we run out of space in our array of characters
 			while ((fetched!=-1) && (result<65000)) {
 				fetched=in.read(cbuf,result,65000-result);

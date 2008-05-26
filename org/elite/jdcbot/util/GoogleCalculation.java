@@ -18,10 +18,12 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-package org.elite.jdcbot;
+package org.elite.jdcbot.util;
 
 import java.net.URLEncoder;
 import java.util.regex.*;
+
+import org.elite.jdcbot.framework.jDCBot;
 
 /**
  * This class extends WebPageFetcher class and implements Runnable

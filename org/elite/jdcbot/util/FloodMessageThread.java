@@ -1,5 +1,5 @@
 /*
- * BotException.java
+ * FloodMessageThread.java
  *
  * Copyright (C) 2005 Kokanovic Branko
  *
@@ -18,25 +18,39 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-package org.elite.jdcbot;
+package org.elite.jdcbot.util;
+
+import org.elite.jdcbot.framework.jDCBot;
+
 
 /**
- * An BotException class.
- * 
+ * Simple example class that extends TimerThread showing how to handle OnTimer triggers.
+ *
+ * Every 10 min. prints some flood message on main chat.
+ *
  * @since 0.5
  * @author  Kokanovic Branko
  * @version    0.6
  */
-public class BotException extends Exception{
+public class FloodMessageThread extends TimerThread{
     
-	static final long serialVersionUID=1;
     /**
-     * Constructs a new BotException.
+     * Constructs FloodMessageThread.
      *
-     * @param e The error message to report.
+     * @param bot Instance of jDCBot.
+     * @param waittime Time between OnTimer events (in ms).
      */
-    public BotException(String e) {
-        super(e);
+    public FloodMessageThread(jDCBot bot,long waittime) {
+        super(bot,waittime);
+    }
+    
+    /** 
+     * Overriden onTimer events and prints some stupid flood message on main chat.
+     */
+    public void onTimer(){
+        try{
+            _bot.SendPublicMessage("Some example flood message");
+        }catch(Exception e){}
     }
     
 }

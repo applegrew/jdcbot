@@ -20,8 +20,8 @@
 
 package org.elite.jdcbot.examples;
 
-import org.elite.jdcbot.BotException;
-import org.elite.jdcbot.jDCBot;
+import org.elite.jdcbot.framework.BotException;
+import org.elite.jdcbot.framework.jDCBot;
 import org.elite.jdcbot.util.FloodMessageThread;
 import org.elite.jdcbot.util.GoogleCalculation;
 import org.elite.jdcbot.util.StaticCommands;
