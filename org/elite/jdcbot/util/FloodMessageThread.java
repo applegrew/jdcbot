@@ -30,7 +30,8 @@ import org.elite.jdcbot.framework.jDCBot;
  *
  * @since 0.5
  * @author  Kokanovic Branko
- * @version    0.6
+ * @author AppleGrew
+ * @version    0.7
  */
 public class FloodMessageThread extends TimerThread{
     
@@ -41,7 +42,7 @@ public class FloodMessageThread extends TimerThread{
      * @param waittime Time between OnTimer events (in ms).
      */
     public FloodMessageThread(jDCBot bot,long waittime) {
-        super(bot,waittime);
+        super(bot,waittime,"FloodThread");
     }
     
     /** 

@@ -22,6 +22,7 @@ package org.elite.jdcbot.util;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
 
 /**
  * Simple MySQLWork extended class that gets static command (command with static output)
@@ -30,32 +31,42 @@ import java.sql.SQLException;
  * 
  * @since 0.6
  * @author Kokanovic Branko
- * @version 0.6
+ * @author AppleGrew
+ * @version 0.7
  *
  */
-public class StaticCommands extends MySQLWork{
-	
-	public StaticCommands(){
-		super("jdcbot","jdcbot","secret");
+public class StaticCommands extends MySQLWork {
+    protected HashMap<String, String> cmds = null;
+
+    public StaticCommands() {
+	super("jdcbot", "jdcbot", "secret");
+	cmds = new HashMap<String, String>();
+	cmds.put("+help", "You wanna get help?");
+    }
+
+    /**
+     * Tries to get command output from database
+     * @param cmd Command that was on main chat for which we search output (e.g. +help)
+     * @return Empty string ("") if command was not found in database, command output otherwise
+     * (e.g. "Output some help")
+     */
+    public String parseCommand(String cmd) {
+	String desc = cmds.get(cmd);
+	try {
+	    String query = "SELECT cmd_output FROM static_cmds WHERE cmd_name='" + cmd + "'";
+	    //System.out.println("Upit:"+query);
+	    if (stmt != null) {
+		ResultSet rs = stmt.executeQuery(query);
+		if (rs.first() == false)
+		    return ""; //nije komanda uopste nadjena
+		desc = rs.getString("cmd_output");
+		return desc;
+	    } else {
+		return (desc == null ? "Command Not Found" : desc);
+	    }
+	} catch (SQLException e) {
+	    displaySQLErrors(e);
+	    return "";
 	}
-	
-	/**
-	 * Tries to get command output from database
-	 * @param cmd Command that was on main chat for which we search output (e.g. +help)
-	 * @return Empty string ("") if command was not found in database, command output otherwise
-	 * (e.g. "Output some help")
-	 */
-	public String parseCommand(String cmd){
-		try{
-			String query = "SELECT cmd_output FROM static_cmds WHERE cmd_name='"+cmd+"'";
-			//System.out.println("Upit:"+query);
-			ResultSet rs=stmt.executeQuery(query);
-			if (rs.first()==false) return ""; //nije komanda uopste nadjena
-			String desc=rs.getString("cmd_output");
-			return desc;
-		}catch(SQLException e){
-			displaySQLErrors(e);
-			return "";
-		}
-	}
+    }
 }

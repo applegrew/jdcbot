@@ -27,55 +27,61 @@ import java.io.*;
  *
  * @since 0.5
  * @author  Kokanovic Branko
- * @version    0.6
+ * @author AppleGrew
+ * @version 0.7
+ * 
  */
-public class InputThread extends Thread{
-    
-    private BufferedReader _breader;
-    private jDCBot _bot;
-    
+public class InputThread extends DCIO implements Runnable {
+    private InputStream _in;
+    private InputThreadTarget _inputThreadTrgt;
+    private volatile boolean running = false;
+
     /** Constructs thread that will read raw commands from hub
      *
-     * @param bot jDCBot instance
-     * @param breader BufferedReader class from which we will read.
+     * @param inputThreadTrgt InputThreadTarget instance
+     * @param in InputStream class from which we will read.
      */
-    public InputThread(jDCBot bot,BufferedReader breader) {
-        _bot=bot;
-        _breader=breader;
+    public InputThread(InputThreadTarget inputThreadTrgt, InputStream in) {
+	_inputThreadTrgt = inputThreadTrgt;
+	_in = in;
+	this.set_IOExceptionMsg("Disconnected");
     }
-    
+
     public void run() {
-        try {
-            boolean running = true;
-            while (running) {
-                String rawCommand=null;
-                rawCommand=this.ReadCommand();
-                if ((rawCommand==null) || (rawCommand.length()==0)){
-                    running=false;
-                    _bot.onDisconnect();
-                }
-                _bot.handleCommand(rawCommand);
-            }
-        }catch(Exception e){
-            _bot.onDisconnect();
-        }
+	try {
+	    running = true;
+	    while (running) {
+		String rawCommand = null;
+		rawCommand = this.ReadCommand(_in);
+		if ((rawCommand == null) || (rawCommand.length() == 0)) {
+		    running = false;
+		    _inputThreadTrgt.onDisconnect();
+		} else
+		    _inputThreadTrgt.handleCommand(rawCommand);
+		onReadingCommand();
+	    }
+	} catch (Exception e) {
+	    e.printStackTrace();
+	    _inputThreadTrgt.onDisconnect();
+	}
     }
-    
+
+    protected void onReadingCommand() {}
+
     /**
-     * Reads raw command sent from hub
+     * Starts the InputThread thread.
      */
-    private String ReadCommand() throws Exception{
-        int c;
-        String buffer=new String();
-        do{
-            try{
-                c=_breader.read();
-                if (c==-1){
-                    throw new IOException("disconnected");
-                }
-                buffer+=(char)c;
-            }catch(IOException e){c='|';}
-        }while(c!='|');
-        return buffer;
+    public void start() {
+	Thread th = new Thread(this);
+	if (th.getState() == Thread.State.NEW) {
+	    running = true;
+	    th.start();
+	    System.out.println("new InputThread thread started.");
+	} else
+	    throw new IllegalThreadStateException("Thread is already running");
+    }
+
+    public void stop() {
+	running = false;
     }
 }

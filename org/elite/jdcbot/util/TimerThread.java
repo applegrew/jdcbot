@@ -31,47 +31,68 @@ import org.elite.jdcbot.framework.jDCBot;
  *
  * @since 0.5
  * @author  Kokanovic Branko
- * @version    0.6
+ * @author AppleGrew
+ * @version    0.7
  */
-public abstract class TimerThread extends Thread{
-    
+public abstract class TimerThread extends Thread {
+
     private long _wait_time;
+    private long _startup_wait_time;
     protected jDCBot _bot;
-    private boolean running=true;
+    private volatile boolean running = true;
+
     /**
      * Constructs new thread that triggers onTimer event.
      *
      * @param bot jDCBot instance needed to send messages...
      * @param wait_time Time (in ms) between triggers.
      */
-    public TimerThread(jDCBot bot,long wait_time) {
-        _bot=bot;
-        _wait_time=wait_time;
+    public TimerThread(jDCBot bot, long wait_time, String ThreadName) {
+	this(bot, wait_time, ThreadName, 0);
     }
-    
-    public void run(){
-        while(running){
-            try{
-                sleep(_wait_time);
-            }catch(InterruptedException e){}
-            onTimer();
-        }
+
+    public TimerThread(jDCBot bot, long wait_time, String ThreadName, long startup_wait_time) {
+	super(ThreadName);
+	_bot = bot;
+	_wait_time = wait_time;
+	_startup_wait_time = startup_wait_time;
     }
-    
+
+    public void run() {
+	if (_startup_wait_time != 0) {
+	    try {
+		sleep(_startup_wait_time);
+		onTimerStart();
+	    } catch (InterruptedException e1) {
+		e1.printStackTrace();
+	    }
+	}
+	while (running) {
+	    onTimer();
+	    try {
+		sleep(_wait_time);
+	    } catch (InterruptedException e) {}
+	}
+    }
+
     /**
      * Called every wait_time
      * <p>
      * The implementation of this method in the TimerThread abstract class
      * performs no actions and may be overridden as required.
      */
-    protected void onTimer(){}
-    
+    protected void onTimer() {}
+
+    protected void onTimerStart() {}
+
     /**
      * Stops the thread.
      */
-    public synchronized void stopIt(){
-        running=false;
-        notify();
+    public synchronized void stopIt() {
+	running = false;
+	try {
+	    interrupt();
+	} catch (Exception e) {}
     }
-    
+
 }

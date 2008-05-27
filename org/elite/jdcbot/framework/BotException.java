@@ -24,19 +24,80 @@ package org.elite.jdcbot.framework;
  * An BotException class.
  * 
  * @since 0.5
- * @author  Kokanovic Branko
- * @version    0.6
+ * @author Kokanovic Branko
+ * @author AppleGrew
+ * @version 0.7
  */
-public class BotException extends Exception{
-    
-	static final long serialVersionUID=1;
+public class BotException extends Exception {
+
+    private static final long serialVersionUID = -6707371836754480742L;
+
+    static public final int NO_FREE_SLOTS = 1;
+    static public final int REMOTE_CLIENT_SENT_WRONG_USRNAME = 2;
+    static public final int VALIDATE_DENIED = 3;
+    static public final int BAD_PASSWORD = 4;
+    static public final int NOT_CONNECTED_TO_HUB = 5;
+    static public final int USRNAME_NOT_FOUND = 6;
+    static public final int UNEXPECTED_RESPONSE = 7;
+    static public final int PROTOCOL_UNSUPPORTED = 8;
+    static public final int A_DOWNLOAD_WAS_NOT_REQUESTED = 9;
+    static public final int NO_FREE_DOWNLOAD_SLOTS = 10;
+
+    private int error_code = 0;
+    private String msg = "";
+
     /**
      * Constructs a new BotException.
-     *
-     * @param e The error message to report.
+     * 
+     * @param e
+     *                The error message to report.
      */
-    public BotException(String e) {
-        super(e);
+    public BotException(int errorCode) {
+	super();
+	error_code = errorCode;
+	msg = code2msg(errorCode);
     }
-    
+
+    public BotException(String e, int errorCode) {
+	super();
+	error_code = errorCode;
+	msg = e;
+    }
+
+    private String code2msg(int errorCode) {
+	String e = "Unknown Error";
+	switch (error_code) {
+	    case NO_FREE_SLOTS:
+		e = "No free slots";
+		break;
+	    case REMOTE_CLIENT_SENT_WRONG_USRNAME:
+		e = "Wrong username sent by remote client";
+		break;
+	    case VALIDATE_DENIED:
+		e = "Validate Denied";
+		break;
+	    case BAD_PASSWORD:
+		e = "Bad Password";
+		break;
+	    case NOT_CONNECTED_TO_HUB:
+		e = "I am not conneced to any hub";
+		break;
+	    case USRNAME_NOT_FOUND:
+		e = "Username doesn't exists";
+		break;
+	    case UNEXPECTED_RESPONSE:
+		e = "Unexpected response";
+		break;
+	}
+	return e;
+    }
+
+    public int getErrCode() {
+	return error_code;
+    }
+
+    public String getMessage() {
+	return msg;
+    }
+
 }
