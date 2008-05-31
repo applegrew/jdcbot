@@ -19,6 +19,7 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,6 +42,8 @@ import org.apache.tools.bzip2.CBZip2InputStream;
  * 
  */
 public class DownloadHandler extends DCIO implements Runnable {
+    private final int in_buffer_size = 1 * 1024 * 1024; //1MB 
+
     private List<DUEntity> DownloadEntityQ;
     private User _u;
     private jDCBot _jdcbot;
@@ -201,6 +204,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 		    len = -1;
 		}
 
+		fin = new BufferedInputStream(fin, in_buffer_size);
 		while ((c = fin.read()) != -1 && (len == -1 || ++len <= fileLen) && !close) {
 		    de.os.write(c);
 		}

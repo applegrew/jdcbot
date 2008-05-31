@@ -39,7 +39,8 @@ import org.elite.jdcbot.framework.jDCBot;
  * as private message to this bot.
  *
  * @author AppleGrew
- * 
+ * @since 0.7.1
+ * @version 0.1
  */
 public class DownloadBot extends jDCBot {
 
@@ -77,7 +78,7 @@ public class DownloadBot extends jDCBot {
     protected void onPrivateMessage(String user, String msg) {
 	if (UserExist(user)) {
 	    if(msg.equals("+quit")){
-		quit();
+		terminate();
 		return;
 	    }
 	    
