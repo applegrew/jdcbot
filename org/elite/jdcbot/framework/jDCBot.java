@@ -42,18 +42,18 @@ import org.elite.jdcbot.shareframework.ShareManager;
  * @since 0.5
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.7
+ * @version 0.7.1
  */
 public abstract class jDCBot extends InputThreadTarget {
 
     /**
      * The definitive version number of this release of jDCBot.
      **/
-    public static final String VERSION = "0.7";
+    public static final String VERSION = "0.7.1";
     private static final String _protoVersion = "1.0091"; //Version of DC++ protocol being used.
 
     private InputThread _inputThread = null;
-    private EventDispatchThread dispatchThread = null;
+    private BotEventDispatchThread dispatchThread = null;
 
     protected Socket socket = null;
     protected ServerSocket socketServer = null;
@@ -74,11 +74,9 @@ public abstract class jDCBot extends InputThreadTarget {
     protected InetAddress _ip;
     protected int _port;
 
-    private final String _hubproto_supports = "NoGetINFO UserIP2 MiniSlots";
-    private final String _clientproto_supports = "MiniSlots ADCGet XmlBZList TTHF ZLIG";
+    private final String _hubproto_supports = "NoGetINFO UserIP2 MiniSlots ";
+    private final String _clientproto_supports = "MiniSlots ADCGet XmlBZList TTHF ZLIG ";
 
-    private volatile boolean remoteConnectionInProgress = false;
-    private String remoteClientIP;
     private int _maxUploadSlots;
     private int _maxDownloadSlots;
 
@@ -95,20 +93,19 @@ public abstract class jDCBot extends InputThreadTarget {
      * href=http://wiki.dcpp.net/index.php/%24MyINFO>DCPP wiki page of $MyINFO command</a>
      * 
      * 
-     * @param botname
-     *                Name of the bot as it will appear in the list of users.
-     * @param password
-     *                Passsword if required, you could put anything if no password is needed.
-     * @param description
-     *                Description of your bot as it will appear in the list of users. On your description is appended standard description.
-     * @param conn_type
-     *                Your connection type, for details look <a href=http://wiki.dcpp.net/index.php/%24MyINFO>here</a>
-     * @param email
-     *                Your e-mail address as it will appear in the list of users.
-     * @param sharesize
-     *                Size of your share in bytes.
-     * @param slots
-     *                Number of slots for other user to connect to you.
+     * @param botname Name of the bot as it will appear in the list of users.
+     * @param botIP Your IP.
+     * @param listenPort The port on your computer where jdcbot should listen for incoming connections from clients.
+     * @param password Passsword if required, you could put anything if no password is needed.
+     * @param description Description of your bot as it will appear in the list of users. On your description is appended standard description.
+     * @param conn_type Your connection type, for details look <a href=http://wiki.dcpp.net/index.php/%24MyINFO>here</a>
+     * @param email Your e-mail address as it will appear in the list of users.
+     * @param sharesize Size of your share in bytes.
+     * @param uploadSlots Number of upload slots for other user to connect to you.
+     * @param downloadSlots Number of download slots. This has nothing to do with DC++ protocol. This has been given
+     * to put an upper cap on no. of simultaneous downloads.
+     * @param passive Set this to fals if you are not behind a firewall.
+     * @param outputLog <u>Almost</u> all debug messages will be printed in this.
      */
     public jDCBot(String botname, String botIP, int listenPort, String password, String description, String conn_type, String email,
 	    String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) {
@@ -117,7 +114,7 @@ public abstract class jDCBot extends InputThreadTarget {
 	// remove this and put
 	// _description=description;
 	// if you don't hub doesn't require standard description
-	_description = description + "<++ V:0.668,M:"+(passive?'P':'A')+",H:1/0/0,S:" + uploadSlots + ">";
+	_description = description + "<++ V:0.668,M:" + (passive ? 'P' : 'A') + ",H:1/0/0,S:" + uploadSlots + ">";
 	_conn_type = conn_type;
 	_email = email;
 	_sharesize = sharesize;
@@ -131,7 +128,7 @@ public abstract class jDCBot extends InputThreadTarget {
 	downloadManager = new DownloadManager(this);
 	uploadManager = new UploadManager(this);
 	shareManager = new ShareManager();
-	dispatchThread = new EventDispatchThread();
+	dispatchThread = new BotEventDispatchThread(this);
     }
 
     /**
@@ -139,23 +136,7 @@ public abstract class jDCBot extends InputThreadTarget {
      * responsible for changing the default settings if required.
      */
     public jDCBot(String botIP) {
-	_botname = "jDCBot";
-	_password = "";
-	_description = "<++ V:0.668,M:A,H:1/0/0,S:0>";
-	_conn_type = "LAN(T1)1";
-	_email = "";
-	_sharesize = "0";
-	_maxUploadSlots = 1;
-	_maxDownloadSlots = 3;
-	_listenPort = 9000;
-	_botIP = botIP;
-	_passive = false;
-	log = System.out;
-
-	downloadManager = new DownloadManager(this);
-	uploadManager = new UploadManager(this);
-	shareManager = new ShareManager();
-	dispatchThread = new EventDispatchThread();
+	this("jDCBot", botIP, 9000, "", "<++ V:0.668,M:A,H:1/0/0,S:0>", "LAN(T1)1", "", "0", 1, 3, false, System.out);
     }
 
     //******Methods to get informations or other misc getters******
@@ -198,9 +179,13 @@ public abstract class jDCBot extends InputThreadTarget {
     public ShareManager getShareManager() {
 	return shareManager;
     }
-    
-    public EventDispatchThread getDispatchThread(){
+
+    public BotEventDispatchThread getDispatchThread() {
 	return dispatchThread;
+    }
+
+    public UserManager getUserManager() {
+	return um;
     }
 
     /**
@@ -240,14 +225,6 @@ public abstract class jDCBot extends InputThreadTarget {
 	return _clientproto_supports.toLowerCase().indexOf(feature.toLowerCase()) != -1;
     }
 
-    public synchronized boolean isRemoteClientConnectionInProgress() {
-	return remoteConnectionInProgress;
-    }
-
-    public synchronized String getRemoteClientIP() {
-	return remoteClientIP;
-    }
-
     public int getMaxUploadSlots() {
 	return _maxUploadSlots;
     }
@@ -274,7 +251,7 @@ public abstract class jDCBot extends InputThreadTarget {
      *                Nick of the user
      * @return User class that holds everything about specified user if he exist, null otherwise
      */
-    public User GetUserInfo(String user) {
+    public User getUser(String user) {
 	if (um.userExist(user) == false)
 	    return null;
 	else
@@ -492,7 +469,7 @@ public abstract class jDCBot extends InputThreadTarget {
 
 	    buffer = ReadCommand(newsocket);// Reading $Supports S|
 	    log.println(buffer);
-	    String remote_supports = parseRawCmd(buffer)[1];
+	    String remote_supports = parseCmdArgs(buffer);
 	    u.setSupports(remote_supports);
 
 	    buffer = ReadCommand(newsocket);// Reading $Direction Upload N2|
@@ -524,6 +501,7 @@ public abstract class jDCBot extends InputThreadTarget {
 
 	Socket newsocket = new Socket();
 	newsocket.connect(new InetSocketAddress(ip, port), 60000);
+	log.println("00>>Connected to remote Client:: " + ip + ":" + port);
 
 	String buffer = "$MyNick " + _botname + "|$Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|"; //user == remote_nick
 	log.println("From bot: " + buffer);
@@ -535,10 +513,10 @@ public abstract class jDCBot extends InputThreadTarget {
 	    throw new BotException(BotException.NO_FREE_SLOTS);
 	}
 	String remote_nick = parseRawCmd(buffer)[1];
-	if(!um.userExist(remote_nick)){
+	if (!um.userExist(remote_nick)) {
 	    throw new BotException(BotException.USRNAME_NOT_FOUND);
 	}
-	
+
 	User u = um.getUser(remote_nick);
 	u.setUserIP(ip);
 
@@ -553,7 +531,7 @@ public abstract class jDCBot extends InputThreadTarget {
 
 	buffer = ReadCommand(newsocket); //Reading $Supports S|
 	log.println(buffer);
-	String remote_supports = parseRawCmd(buffer)[1];
+	String remote_supports = parseCmdArgs(buffer);
 	u.setSupports(remote_supports);
 
 	buffer = ReadCommand(newsocket); //Reading $Direction D N|
@@ -576,18 +554,32 @@ public abstract class jDCBot extends InputThreadTarget {
     }
 
     /**
-     * Attemps to nicely close connection.
+     * Attemps to nicely close connection with the hub. You
+     * can call {@link #connect(String, int) connect} again to connect to the hub.
      */
     public void quit() {
 	try {
 	    SendCommand("$Quit " + _botname + "|");
 	} catch (Exception e) {} finally {
+	    onBotQuit();
 	    try {
-		onBotQuit();
 		socket.close();
 		socket = null;
 	    } catch (IOException e) {}
 	}
+    }
+
+    /**
+     * Call this when you want to shut down framework completely. Unlike {@link #quit() quit},
+     * {@link #connect(String, int) connect} is not supposed to be called after calling this method. 
+     *
+     */
+    public void terminate() {
+	quit();
+	uploadManager.close();
+	downloadManager.close();
+	_inputThread.stop();
+	dispatchThread.stopIt();
     }
 
     /**
@@ -993,8 +985,8 @@ public abstract class jDCBot extends InputThreadTarget {
     /**
      * Called when some new info about the user is found. Like his IP, Passive/Active state, etc.
      * <p>
-     * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.
-     * 
+     * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.<br>
+     * <b>Note:</b> This method is called by <b>User</b> and <b>UserManager</b> using <i>jDCBot-EventDispatchThread</i> thread.
      * @param user
      *                The user from the hub.
      */
@@ -1073,25 +1065,32 @@ public abstract class jDCBot extends InputThreadTarget {
      *                Pattern user is searching for.
      */
     protected void onActiveSearch(String IP, int port, boolean isSizeRestricted, boolean isMinimumSize, long size, int dataType, String searchPattern) {}
-    
+
     /**
      * Called when download is complete.<br>
      * <b>Note:</b> This method is called by <b>DownloadHandler</b> using <i>jDCBot-EventDispatchThread</i> thread.
+     * @param user The user from whom the file was downloaded.
      * @param due The informations about the file downloaded is in this.
+     * @param success It is true if download was successful else false.
+     * @param e The exception that occured when sucess is false else it is null.
      */
-    protected void onDownloadComplete(DUEntity due){}
-    
+    protected void onDownloadComplete(User user, DUEntity due, boolean success, BotException e) {}
+
     /**
      * Called when upload is complete.<br>
      * <b>Note:</b> This method is called by <b>DownloadHandler</b> using <i>jDCBot-EventDispatchThread</i> thread.
+     * @param user The user to whom the file was uploaded.
      * @param due The informations about the file uploaded is in this.
+     * @param success It is true if upload was successful else false.
+     * @param e The exception that occured when sucess is false else it is null.
      */
-    protected void onUploadComplete(DUEntity due){}
-    
+    protected void onUploadComplete(User user, DUEntity due, boolean success, BotException e) {}
+
     /**
-    * Called when upload is starting.<br>
-    * <b>Note:</b> This method is called by <b>DownloadHandler</b> using <i>jDCBot-EventDispatchThread</i> thread.
-    * @param due The informations about the file downloaded is in this.
-    */
-    protected void onUploadStart(DUEntity due){}
+     * Called when upload is starting.<br>
+     * <b>Note:</b> This method is called by <b>DownloadHandler</b> using <i>jDCBot-EventDispatchThread</i> thread.
+     * @param user The user to whom the file is being uploaded.
+     * @param due The informations about the file downloaded is in this.
+     */
+    protected void onUploadStart(User user, DUEntity due) {}
 }

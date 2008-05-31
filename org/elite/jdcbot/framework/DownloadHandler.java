@@ -19,22 +19,25 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.zip.DeflaterInputStream;
+import java.util.zip.InflaterInputStream;
 
 import org.apache.tools.bzip2.CBZip2InputStream;
 
 /**
- * Created on 26-May-08
+ * Created on 26-May-08<br>
+ * Handels all the downloads from a single user for a session.
  *
  * @author AppleGrew
  * @since 0.7
- * @version 0.1
+ * @version 0.1.1
  * 
  */
 public class DownloadHandler extends DCIO implements Runnable {
@@ -53,12 +56,13 @@ public class DownloadHandler extends DCIO implements Runnable {
 	_dm = dm;
 	th = null;
 	DownloadEntityQ = Collections.synchronizedList(new ArrayList<DUEntity>());
+	close = false;
     }
 
     public void close() {
 	close = true;
 	if (threadstarted)
-	    this.notify();
+	    th.interrupt();
     }
 
     public void download(DUEntity de) {
@@ -106,8 +110,8 @@ public class DownloadHandler extends DCIO implements Runnable {
 		} catch (InterruptedException e1) {
 		    _jdcbot.log.println("DownloadHandler thread woken up.");
 		}
-		if (_socket == null && count>=3) {
-		    _jdcbot.log.println("Timeout. Waited for too long for remote client's ("+_u.username()+") connection.");
+		if (_socket == null && count >= 3) {
+		    _jdcbot.log.println("Timeout. Waited for too long for remote client's (" + _u.username() + ") connection.");
 		    return;
 		}
 	    }
@@ -149,7 +153,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 		    if (buffer.startsWith("$Error")) {
 			String err = "Transfer failed due to: " + buffer.substring(buffer.indexOf(' ') + 1, buffer.indexOf('|'));
 			_jdcbot.log.println(err);
-			throw new IOException(err);
+			throw new BotException(err, BotException.IO_ERROR);
 		    }
 		    params = parseRawCmd(buffer);
 		    fileLen = Long.parseLong(params[4]);
@@ -157,39 +161,63 @@ public class DownloadHandler extends DCIO implements Runnable {
 
 		    if (Z.equalsIgnoreCase("ZL1"))
 			ZLIG = true;
+		} else {
+		    _jdcbot.log.println("None of known file transfer method supported by remote client.");
+		    throw new BotException(BotException.PROTOCOL_UNSUPPORTED);
 		}
+
 	    } catch (Exception be) {
 		_jdcbot.log.println("Exception in DownloadHandler thread: " + be.getMessage());
 		be.printStackTrace();
-		return;
+
+		/*_jdcbot.getDispatchThread().call(_jdcbot, "onDownloadComplete",
+		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, _u, de, false, be);*/
+		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, new BotException(be.getMessage(), BotException.IO_ERROR));
+		continue;
 	    }
 
 	    try {
 		InputStream in = null;
+
 		if (ZLIG)
-		    in = new DeflaterInputStream(_socket.getInputStream());
+		    in = new InflaterInputStream(_socket.getInputStream());
 		else
 		    in = _socket.getInputStream();
 
 		int len = 0, c;
 
-		if (de.fileType == DUEntity.FILELIST_TYPE && (_u.isSupports("XmlBZList") || _u.isSupports("BZList"))) {
-		    c = in.read(); //Reading out the first two bytes - BZ. Else decompression will fail and NullPoiterException will be thrown.
-		    if (c != -1)
-			in.read();
-		    in = new CBZip2InputStream(in);
+		InputStream fin = in;
+		if (de.fileType == DUEntity.FILELIST_TYPE && (_u.isSupports("XmlBZList") || _u.isSupports("BZList"))
+			&& !de.isSettingSet(DUEntity.NO_AUTO_FILELIST_DECOMPRESS_SETTING)) {
+
+		    ByteArrayOutputStream bout = new ByteArrayOutputStream();
+		    while ((c = in.read()) != -1 && ++len <= fileLen) {
+			bout.write(c);
+		    }
+		    byte barr[] = bout.toByteArray();
+		    //bout.reset();
+		    //Skipping the first two bytes - BZ. Else decompression will fail and NullPoiterException maybe be thrown.
+		    fin = new CBZip2InputStream(new ByteArrayInputStream(barr, 2, barr.length));
+		    len = -1;
 		}
 
-		while ((c = in.read()) != -1 && ++len <= fileLen) {
+		while ((c = fin.read()) != -1 && (len == -1 || ++len <= fileLen) && !close) {
 		    de.os.write(c);
 		}
 		de.os.close();
+
+		/*_jdcbot.getDispatchThread().call(_jdcbot, "onDownloadComplete",
+		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, _u, de, true, null);*/
+		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, true, null);
+
 	    } catch (IOException ioe) {
 		_jdcbot.log.println("IOException in DownloadHandler thread: " + ioe.getMessage());
 		ioe.printStackTrace();
+		/*_jdcbot.getDispatchThread().call(_jdcbot, "onDownloadComplete",
+		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, _u, de, false,
+		 new BotException(ioe.getMessage(), BotException.IO_ERROR));*/
+		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, new BotException(ioe.getMessage(), BotException.IO_ERROR));
 	    }
-	    _jdcbot.getDispatchThread().call(_jdcbot, "onDownloadComplete", de);
-	    //_jdcbot.onDownloadComplete(de);
 	}
 
 	try {

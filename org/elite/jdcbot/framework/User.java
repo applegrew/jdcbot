@@ -30,7 +30,7 @@ import java.io.OutputStream;
  * @since 0.6
  * @author  Kokanovic Branko
  * @author AppleGrew
- * @version    0.7
+ * @version    0.7.1
  */
 public class User {
     public static final int NORMAL_FLAG = 1;
@@ -73,7 +73,7 @@ public class User {
 	    _tag = new String();
 	else
 	    _tag = _desc.substring(_desc.indexOf('<') + 1, _desc.length() - 1);
-	
+
 	String flag = _conn.substring(_conn.length() - 1, _conn.length());
 	try {
 	    Integer.parseInt(flag);
@@ -83,11 +83,16 @@ public class User {
 	    flag = "1";
 	}
 	_flag = Integer.parseInt(flag);
-	if(_flag==3) _flag=2;
-	else if(_flag==5) _flag=4;
-	else if(_flag==7) _flag=6;
-	else if(_flag==9) _flag=8;
-	else if(_flag==11) _flag=10;
+	if (_flag == 3)
+	    _flag = 2;
+	else if (_flag == 5)
+	    _flag = 4;
+	else if (_flag == 7)
+	    _flag = 6;
+	else if (_flag == 9)
+	    _flag = 8;
+	else if (_flag == 11)
+	    _flag = 10;
     }
 
     public boolean hasInfo() {
@@ -96,7 +101,8 @@ public class User {
 
     public void setSupports(String supports) {
 	_supports = supports;
-	_bot.onUpdateMyInfo(_username);
+	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, _username);
+	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
     /**
@@ -105,7 +111,8 @@ public class User {
      */
     public void setOp(boolean flag) {
 	_op = flag;
-	_bot.onUpdateMyInfo(_username);
+	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, _username);
+	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
     public boolean isOp() {
@@ -123,7 +130,8 @@ public class User {
 
     public void setUserIP(String ip) {
 	_ip = ip;
-	_bot.onUpdateMyInfo(_username);
+	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, _username);
+	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
     public String getUserIP() {
@@ -255,24 +263,29 @@ public class User {
 	extraSlotsGranted = flag;
     }
 
-    public int getFlag(){
+    public int getFlag() {
 	return _flag;
     }
-    
+
     /**
      * This is the function users of the framework are expected to use to download files.
      * @param de
+     * @throws BotException 
      */
-    public void download(DUEntity de) {
+    public void download(DUEntity de) throws BotException {
 	_bot.downloadManager.download(de, this);
     }
 
     /**
      * This is the function users of the framework are expected to use to download file list.
-     * @param os The OutputStream where the <u>decompressed</u> file list will be saved.
+     * @param os The OutputStream where the file list will be saved. <b>Note:</b> It will be <u>decompressed</u>
+     * by default, unless you set the <i>settings</i> that it shouldn't.
+     * @param settings See {@link DUEntity#settingFlags settingFlags}
+     * @throws BotException 
      */
-    public void downloadFileList(OutputStream os) {
-	DUEntity de = new DUEntity(DUEntity.FILELIST_TYPE, os);
+    public void downloadFileList(OutputStream os, int settings) throws BotException {
+	DUEntity de = new DUEntity(DUEntity.FILELIST_TYPE, os, settings);
 	_bot.downloadManager.download(de, this);
     }
+
 }

@@ -20,6 +20,7 @@
 package org.elite.jdcbot.framework;
 
 import java.net.Socket;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,12 +42,23 @@ public class DownloadManager extends DCIO {
 	jdcbot = bot;
 	allDH = Collections.synchronizedMap(new HashMap<String, DownloadHandler>());
     }
+    
+    protected synchronized void close(){
+	Collection<DownloadHandler> dh = allDH.values();
+	for(DownloadHandler d:dh){
+	    d.close();
+	}
+    }
 
     protected synchronized void tasksComplete(DownloadHandler dh) {
 	allDH.remove(dh.getUserName());
     }
 
-    protected void download(DUEntity de, User u) {
+    protected void download(DUEntity de, User u) throws BotException {
+	if (!u.isActive() && jdcbot.isPassive()) {
+	    throw new BotException(BotException.DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE);
+	}
+
 	DownloadHandler dh;
 	if (!allDH.containsKey((u.username()))) {
 	    dh = new DownloadHandler(u, jdcbot, this);

@@ -19,7 +19,9 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.IOException;
 import java.net.Socket;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +40,17 @@ public class UploadManager extends DCIO {
     public UploadManager(jDCBot bot) {
 	jdcbot = bot;
 	allUH = Collections.synchronizedMap(new HashMap<String, UploadHandler>());
+    }
+
+    protected synchronized void close() {
+	Collection<UploadHandler> uh = allUH.values();
+	for (UploadHandler u : uh) {
+	    try {
+		u.close();
+	    } catch (IOException e) {
+		e.printStackTrace();
+	    }
+	}
     }
 
     protected synchronized void tasksComplete(UploadHandler uh) {
@@ -68,7 +81,7 @@ public class UploadManager extends DCIO {
 	}
 	UploadHandler uh;
 	if (!allUH.containsKey(user)) {
-	    uh = new UploadHandler(socket, jdcbot, this);
+	    uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
 	    allUH.put(user, uh);
 	} else
 	    uh = allUH.get(user);
@@ -103,7 +116,7 @@ public class UploadManager extends DCIO {
 
 	UploadHandler uh;
 	if (!allUH.containsKey(user)) {
-	    uh = new UploadHandler(socket, jdcbot, this);
+	    uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
 	    allUH.put(user, uh);
 	} else
 	    uh = allUH.get(user);

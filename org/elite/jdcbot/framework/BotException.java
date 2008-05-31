@@ -42,6 +42,8 @@ public class BotException extends Exception {
     static public final int PROTOCOL_UNSUPPORTED = 8;
     static public final int A_DOWNLOAD_WAS_NOT_REQUESTED = 9;
     static public final int NO_FREE_DOWNLOAD_SLOTS = 10;
+    static public final int DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE = 11;
+    static public final int IO_ERROR = 12;
 
     private int error_code = 0;
     private String msg = "";
@@ -87,6 +89,21 @@ public class BotException extends Exception {
 		break;
 	    case UNEXPECTED_RESPONSE:
 		e = "Unexpected response";
+		break;
+	    case PROTOCOL_UNSUPPORTED:
+		e = "The protocol is not supported";
+		break;
+	    case A_DOWNLOAD_WAS_NOT_REQUESTED:
+		e = "Download was not requested yet remote client wants to send data";
+		break;
+	    case NO_FREE_DOWNLOAD_SLOTS:
+		e = "No free donwload slots";
+		break;
+	    case DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE:
+		e = "This and remote clients both are passive, so download not possible";
+		break;
+	    case IO_ERROR:
+		e = "Input/Output error occured";
 		break;
 	}
 	return e;

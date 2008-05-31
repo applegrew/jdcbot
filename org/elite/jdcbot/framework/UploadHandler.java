@@ -23,15 +23,17 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
-import java.util.zip.InflaterInputStream;
+import java.util.zip.DeflaterInputStream;
 
 import org.elite.jdcbot.shareframework.ShareManager;
 
 /**
- * Created on 26-May-08
+ * Created on 26-May-08<br>
+ * Handels all the uploads to a single user for a session.
  *
  * @author AppleGrew
- * 
+ * @since 0.7
+ * @version 0.1.1
  */
 public class UploadHandler extends InputThreadTarget {
     private Socket socket;
@@ -40,14 +42,16 @@ public class UploadHandler extends InputThreadTarget {
     private ShareManager sm;
     private TimeoutInputThread inputThread = null;
     private boolean isfirstUpload = true;
-    private String user;
+    private User user;
+    private volatile boolean close;
 
-    UploadHandler(Socket socket, jDCBot jdcbot, UploadManager um) {
+    UploadHandler(User usr, Socket socket, jDCBot jdcbot, UploadManager um) {
 	this.um = um;
 	this.socket = socket;
 	this.jdcbot = jdcbot;
 	sm = jdcbot.getShareManager();
-	user = "";
+	user = usr;
+	close = false;
     }
 
     public void startUploads() {
@@ -58,16 +62,18 @@ public class UploadHandler extends InputThreadTarget {
 		jdcbot.log.println("IOException by socket.getInputStream() in startUploads(): " + e.getMessage());
 		e.printStackTrace();
 	    }
+	close = false;
 	isfirstUpload = true;
 	inputThread.start();
     }
 
     public String getUserName() {
-	return user;
+	return user.username();
     }
 
     public void close() throws IOException {
 	inputThread.stop();
+	close = true;
 	socket.close();
 	socket = null;
     }
@@ -109,8 +115,7 @@ public class UploadHandler extends InputThreadTarget {
 	    } else if (fileType.equals("tthl"))
 		fType = DUEntity.TTHL_TYPE;
 
-	    if (isfirstUpload && fType != DUEntity.FILELIST_TYPE && !jdcbot.GetUserInfo(user).isGrantedExtraSlot()
-		    && um.getAllUHCount() >= jdcbot.getMaxUploadSlots()) {
+	    if (isfirstUpload && fType != DUEntity.FILELIST_TYPE && !user.isGrantedExtraSlot() && um.getAllUHCount() >= jdcbot.getMaxUploadSlots()) {
 		buffer = "$MaxedOut|";
 		try {
 		    SendCommand(buffer, socket);
@@ -156,7 +161,7 @@ public class UploadHandler extends InputThreadTarget {
 		    SendCommand(buffer, socket);
 		    jdcbot.log.println("From bot: " + buffer);
 		} else {
-		    in = new InflaterInputStream(due.in);
+		    in = new DeflaterInputStream(due.in);
 		    buffer = "$ADCSend " + due.getFileType() + " " + due.file + " " + due.start + " " + due.len + "|";
 		    SendCommand(buffer, socket);
 		    jdcbot.log.println("From bot: " + buffer);
@@ -168,20 +173,25 @@ public class UploadHandler extends InputThreadTarget {
 	}
 
 	if (in != null) {
-	    jdcbot.getDispatchThread().call(jdcbot, "onUploadStart", due);
-	    //jdcbot.onUploadStart(due);
+	    /*jdcbot.getDispatchThread().call(jdcbot, "onUploadStart", new Class[] { User.class, DUEntity.class }, user, due);*/
+	    jdcbot.getDispatchThread().callOnUploadStart(user, due);
 	    int len = 0, c;
 	    try {
-		while ((c = in.read()) != -1 && ++len <= fileLen) {
+		while ((c = in.read()) != -1 && ++len <= fileLen && !close) {
 		    socket.getOutputStream().write(c);
 		}
 		in.close();
 	    } catch (IOException ioe) {
 		jdcbot.log.println("IOException in startUploads(): " + ioe.getMessage());
 		ioe.printStackTrace();
+		/*jdcbot.getDispatchThread().call(jdcbot, "onUploadComplete",
+		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, user, due, false,
+		 new BotException(ioe.getMessage(), BotException.IO_ERROR));*/
+		jdcbot.getDispatchThread().callOnUploadComplete(user, due, false, new BotException(ioe.getMessage(), BotException.IO_ERROR));
 	    }
-	    jdcbot.getDispatchThread().call(jdcbot, "onUploadComplete", due);
-	    //jdcbot.onUploadComplete(due);
+	    /*jdcbot.getDispatchThread().call(jdcbot, "onUploadComplete",
+	     new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, user, due, true, null);*/
+	    jdcbot.getDispatchThread().callOnUploadComplete(user, due, true, null);
 	}
     }
 
