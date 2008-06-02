@@ -23,6 +23,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Vector;
 
 import org.elite.jdcbot.framework.BotException;
@@ -60,9 +61,12 @@ public class DownloadBot extends jDCBot {
 	);
 
 	try {
-	    connect("127.0.0.1", 1411);
-	} catch (Exception e) {
-	    e.printStackTrace();
+	    connect("127.0.0.1", 1411); //Connecting to the hub.
+	} catch (BotException e) {
+	    e.printStackTrace(log);
+	    terminate();
+	} catch (IOException e) {
+	    e.printStackTrace(log);
 	    terminate();
 	}
     }
@@ -71,18 +75,23 @@ public class DownloadBot extends jDCBot {
 	try {
 	    SendPrivateMessage(user, msg);
 	} catch (Exception e) {
-	    e.printStackTrace();
+	    e.printStackTrace(log);
 	}
     }
 
     protected void onPrivateMessage(String user, String msg) {
 	if (UserExist(user)) {
-	    if(msg.equals("+quit")){
+	    if (msg.equals("+quit")) {
 		terminate();
 		return;
 	    }
-	    
-	    Query Q[] = getSegmentedQuery(msg.trim().substring(msg.indexOf('?') + 1));
+	    msg = msg.trim();
+
+	    Query Q[] = getSegmentedQuery(msg.substring(msg.indexOf('?') + 1));
+	    if (Q == null) {
+		pm(user, "Error! Maybe the URI is not in proper format");
+		return;
+	    }
 
 	    String tth = null, name = null;
 	    long size = 0;
@@ -112,7 +121,9 @@ public class DownloadBot extends jDCBot {
 
 	    DUEntity due = new DUEntity();
 	    due.fileType = DUEntity.FILE_TYPE;
-	    due.file = "TTH/" + tth;
+	    //due.file = "TTH/" + tth; No need to prefix to 'TTH/' manually anymore, just set the following flag.
+	    due.file = tth;
+	    due.setSetting(DUEntity.AUTO_PREFIX_TTH_SETTING);
 
 	    File file = new File(name);
 	    if (file.exists()) {
@@ -123,7 +134,7 @@ public class DownloadBot extends jDCBot {
 	    try {
 		due.os = new BufferedOutputStream(new FileOutputStream(file));
 	    } catch (FileNotFoundException e) {
-		e.printStackTrace();
+		e.printStackTrace(log);
 		return;
 	    }
 	    due.start = 0;
@@ -132,7 +143,7 @@ public class DownloadBot extends jDCBot {
 	    try {
 		getUser(user).download(due);
 	    } catch (BotException e) {
-		e.printStackTrace();
+		e.printStackTrace(log);
 	    }
 	}
     }
@@ -142,7 +153,7 @@ public class DownloadBot extends jDCBot {
 	String qs[] = query.split("&");
 	for (String q : qs) {
 	    String e[] = q.split("=");
-	    Q.add(new Query(e[0], e[1]));
+	    Q.add(new Query(e[0], e.length < 2 ? null : e[1]));
 	}
 	return Q.toArray(new Query[0]);
     }

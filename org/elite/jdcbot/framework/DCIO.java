@@ -45,15 +45,16 @@ public class DCIO {
      * 
      * @param The socket stream from which to read the command.
      * @return Command from hub
+     * @throws IOException 
      */
-    public final String ReadCommand(InputStream in) throws Exception {
+    public final String ReadCommand(InputStream in) throws IOException {
 	int c;
 	String buffer = new String();
 	do {
 	    c = in.read();
 	    if (c == -1) {
 		if (ioexception_msg == null)
-		    ioexception_msg = "Premature End of Socket stream";
+		    ioexception_msg = "Premature End of Socket stream or no data in it";
 		throw new IOException(ioexception_msg);
 	    }
 	    buffer += (char) c;
@@ -61,7 +62,7 @@ public class DCIO {
 	return buffer;
     }
 
-    public final String ReadCommand(Socket socket) throws Exception {
+    public final String ReadCommand(Socket socket) throws IOException {
 	return ReadCommand(socket.getInputStream());
     }
 
@@ -72,15 +73,16 @@ public class DCIO {
      *                Line which needs to be send. This method won't append "|" on the end on the string if it doesn't exist, so it is up to make
      *                sure buffer ends with "|" if you calling this method.
      * @param out The socket stream into which to write the raw command.              
+     * @throws IOException 
      */
-    public final void SendCommand(String buffer, OutputStream out) throws Exception {
+    public final void SendCommand(String buffer, OutputStream out) throws IOException {
 	byte[] bytes = new byte[buffer.length()];
 	for (int i = 0; i < buffer.length(); i++)
 	    bytes[i] = (byte) buffer.charAt(i);
 	out.write(bytes);
     }
 
-    public final void SendCommand(String buffer, Socket socket) throws Exception {
+    public final void SendCommand(String buffer, Socket socket) throws IOException {
 	SendCommand(buffer, socket.getOutputStream());
     }
 

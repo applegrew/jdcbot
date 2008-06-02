@@ -23,7 +23,7 @@ package org.elite.jdcbot.framework;
 import java.util.*;
 
 /**
- * An user menager class.
+ * An user manager class.
  * <p>
  * This class holds all data about all users present on the hub like description, e-mail...
  * You shoudn't use this class directly, 
@@ -59,8 +59,7 @@ public class UserManager {
 	    String user = userList.get(i);
 	    if (!user.equals(_bot.botname())) {
 		users.add(new User(user, _bot));
-		//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, user);
-		_bot.getDispatchThread().callOnUpdateMyInfo(user);
+		//_bot.getDispatchThread().callOnUpdateMyInfo(user);
 		try {
 		    if (!_bot.isHubSupports("NoGetINFO")) {
 			String cmd = "$GetINFO $" + user + " $" + _bot.botname() + "|";
@@ -81,7 +80,6 @@ public class UserManager {
 	    String ip = userNip.trim().substring(spcpos);
 	    User u = getUser(user);
 	    u.setUserIP(ip);
-	    //_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, user);
 	    _bot.getDispatchThread().callOnUpdateMyInfo(user);
 	}
     }
@@ -101,7 +99,6 @@ public class UserManager {
 		    users.add(new User(user, _bot));
 		User u = getUser(user);
 		u.setOp(true);
-		//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, user);
 		_bot.getDispatchThread().callOnUpdateMyInfo(user);
 	    }
 	}
@@ -270,7 +267,6 @@ public class UserManager {
 		return;
 	    }
 	}
-	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, user);
 	_bot.getDispatchThread().callOnUpdateMyInfo(user);
     }
 

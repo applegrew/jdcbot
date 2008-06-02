@@ -42,9 +42,11 @@ import org.apache.tools.bzip2.CBZip2InputStream;
  * 
  */
 public class DownloadHandler extends DCIO implements Runnable {
-    private final int in_buffer_size = 1 * 1024 * 1024; //1MB 
+    private final int in_buffer_size = 1 * 1024 * 1024; //1MB
+    private final int checkInterval = 100000; //This has been defined so polling frequency of CancelEntityQ is minimized. 
 
     private List<DUEntity> DownloadEntityQ;
+    private List<DUEntity> CancelEntityQ;
     private User _u;
     private jDCBot _jdcbot;
     private DownloadManager _dm;
@@ -59,11 +61,18 @@ public class DownloadHandler extends DCIO implements Runnable {
 	_dm = dm;
 	th = null;
 	DownloadEntityQ = Collections.synchronizedList(new ArrayList<DUEntity>());
+	CancelEntityQ = Collections.synchronizedList(new ArrayList<DUEntity>());
 	close = false;
     }
 
     public void close() {
 	close = true;
+	if (threadstarted)
+	    th.interrupt();
+    }
+
+    public void cancelDownload(DUEntity due) {
+	CancelEntityQ.add(due);
 	if (threadstarted)
 	    th.interrupt();
     }
@@ -100,7 +109,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 	    }
 	} catch (Exception be) {
 	    _jdcbot.log.println("Exception in DownloadHandler thread: " + be.getMessage());
-	    be.printStackTrace();
+	    be.printStackTrace(_jdcbot.log);
 	    return;
 	}
 
@@ -123,27 +132,50 @@ public class DownloadHandler extends DCIO implements Runnable {
 	while (!DownloadEntityQ.isEmpty() && !close) {
 	    DUEntity de = DownloadEntityQ.get(0);
 	    DownloadEntityQ.remove(0);
+	    int index;
+	    if ((index = CancelEntityQ.indexOf(de)) != -1) {
+		CancelEntityQ.remove(index);
+		try {
+		    throw new BotException(BotException.TRANSFER_CANCELLED);
+		} catch (BotException e) {
+		    _jdcbot.log.println("BotException in DownloadHandler thread: " + e.getMessage());
+		    _jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, e);
+		}
+	    }
+
+	    if ((!_u.isSupports("TTHF") && de.isSettingSet(DUEntity.AUTO_PREFIX_TTH_SETTING))
+		    || (!_u.isSupports("TTHL") && de.fileType == DUEntity.TTHL_TYPE)) {
+		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, new BotException(BotException.PROTOCOL_UNSUPPORTED_BY_REMOTE));
+		continue;
+	    }
+
+	    String file = de.file;
+	    long start = de.start;
+	    long fileLen = de.len;
+
+	    if (de.isSettingSet(DUEntity.AUTO_PREFIX_TTH_SETTING) && de.fileType != DUEntity.FILELIST_TYPE)
+		if (!file.startsWith("TTH/"))
+		    file = "TTH/" + file;
 
 	    boolean ZLIG = false;
-	    long fileLen = 0;
 	    try {
 		if (_u.isSupports("ADCGet")) {
 		    if (de.fileType == DUEntity.FILELIST_TYPE) {
 			//If the user wants to download the filelist.
-			de.start = 0;
-			de.len = -1;
+			start = 0;
+			fileLen = -1;
 			if (_u.isSupports("XmlBZList"))
-			    de.file = "files.xml.bz2";
+			    file = "files.xml.bz2";
 			else if (_u.isSupports("BZList"))
-			    de.file = "MyList.bz2";
+			    file = "MyList.bz2";
 		    }
 
 		    if (_u.isSupports("ZLIG")) {
-			buffer = "$ADCGET " + de.getFileType() + " " + de.file + " " + de.start + " " + de.len + " ZL1|";
+			buffer = "$ADCGET " + de.getFileType() + " " + file + " " + start + " " + fileLen + " ZL1|";
 			_jdcbot.log.println("From bot: " + buffer);
 			SendCommand(buffer, _socket);
 		    } else {
-			buffer = "$ADCGET " + de.getFileType() + " " + de.file + " " + de.start + " " + de.len + "|";
+			buffer = "$ADCGET " + de.getFileType() + " " + file + " " + start + " " + fileLen + "|";
 			_jdcbot.log.println("From bot: " + buffer);
 			SendCommand(buffer, _socket);
 		    }
@@ -171,7 +203,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 
 	    } catch (Exception be) {
 		_jdcbot.log.println("Exception in DownloadHandler thread: " + be.getMessage());
-		be.printStackTrace();
+		be.printStackTrace(_jdcbot.log);
 
 		/*_jdcbot.getDispatchThread().call(_jdcbot, "onDownloadComplete",
 		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, _u, de, false, be);*/
@@ -194,18 +226,34 @@ public class DownloadHandler extends DCIO implements Runnable {
 			&& !de.isSettingSet(DUEntity.NO_AUTO_FILELIST_DECOMPRESS_SETTING)) {
 
 		    ByteArrayOutputStream bout = new ByteArrayOutputStream();
+		    int intervalCount = checkInterval;
 		    while ((c = in.read()) != -1 && ++len <= fileLen) {
+			intervalCount--;
+			if (intervalCount <= 0 && (index = CancelEntityQ.indexOf(de)) != -1) {
+			    CancelEntityQ.remove(index);
+			    throw new BotException(BotException.TRANSFER_CANCELLED);
+			}
+			if (intervalCount <= 0)
+			    intervalCount = checkInterval;
 			bout.write(c);
 		    }
 		    byte barr[] = bout.toByteArray();
-		    //bout.reset();
+		    bout.reset();
 		    //Skipping the first two bytes - BZ. Else decompression will fail and NullPoiterException maybe be thrown.
 		    fin = new CBZip2InputStream(new ByteArrayInputStream(barr, 2, barr.length));
 		    len = -1;
 		}
 
 		fin = new BufferedInputStream(fin, in_buffer_size);
+		int intervalCount = checkInterval;
 		while ((c = fin.read()) != -1 && (len == -1 || ++len <= fileLen) && !close) {
+		    intervalCount--;
+		    if (intervalCount <= 0 && (index = CancelEntityQ.indexOf(de)) != -1) {
+			CancelEntityQ.remove(index);
+			throw new BotException(BotException.TRANSFER_CANCELLED);
+		    }
+		    if (intervalCount <= 0)
+			intervalCount = checkInterval;
 		    de.os.write(c);
 		}
 		de.os.close();
@@ -216,11 +264,14 @@ public class DownloadHandler extends DCIO implements Runnable {
 
 	    } catch (IOException ioe) {
 		_jdcbot.log.println("IOException in DownloadHandler thread: " + ioe.getMessage());
-		ioe.printStackTrace();
+		ioe.printStackTrace(_jdcbot.log);
 		/*_jdcbot.getDispatchThread().call(_jdcbot, "onDownloadComplete",
 		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, _u, de, false,
 		 new BotException(ioe.getMessage(), BotException.IO_ERROR));*/
 		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, new BotException(ioe.getMessage(), BotException.IO_ERROR));
+	    } catch (BotException e) {
+		_jdcbot.log.println("BotException in DownloadHandler thread: " + e.getMessage());
+		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, e);
 	    }
 	}
 
@@ -228,7 +279,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 	    _socket.close();
 	} catch (IOException e) {
 	    _jdcbot.log.println("IOException during closing socket in DownloadHandler thread: " + e.getMessage());
-	    e.printStackTrace();
+	    e.printStackTrace(_jdcbot.log);
 	}
 	threadstarted = false;
 	_dm.tasksComplete(this);

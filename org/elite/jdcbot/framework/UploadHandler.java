@@ -32,8 +32,8 @@ import org.elite.jdcbot.shareframework.ShareManager;
  * Handels all the uploads to a single user for a session.
  *
  * @author AppleGrew
- * @since 0.7
- * @version 0.1.1
+ * @since 0.7.2
+ * @version 0.1.2
  */
 public class UploadHandler extends InputThreadTarget {
     private Socket socket;
@@ -44,6 +44,7 @@ public class UploadHandler extends InputThreadTarget {
     private boolean isfirstUpload = true;
     private User user;
     private volatile boolean close;
+    private volatile boolean cancelUpload;
 
     UploadHandler(User usr, Socket socket, jDCBot jdcbot, UploadManager um) {
 	this.um = um;
@@ -52,6 +53,7 @@ public class UploadHandler extends InputThreadTarget {
 	sm = jdcbot.getShareManager();
 	user = usr;
 	close = false;
+	cancelUpload = false;
     }
 
     public void startUploads() {
@@ -60,9 +62,9 @@ public class UploadHandler extends InputThreadTarget {
 		inputThread = new TimeoutInputThread(this, socket.getInputStream());
 	    } catch (IOException e) {
 		jdcbot.log.println("IOException by socket.getInputStream() in startUploads(): " + e.getMessage());
-		e.printStackTrace();
+		e.printStackTrace(jdcbot.log);
 	    }
-	close = false;
+	cancelUpload = false;
 	isfirstUpload = true;
 	inputThread.start();
     }
@@ -76,6 +78,10 @@ public class UploadHandler extends InputThreadTarget {
 	close = true;
 	socket.close();
 	socket = null;
+    }
+
+    public void cancelUpload() {
+	cancelUpload = true;
     }
 
     @Override
@@ -115,20 +121,21 @@ public class UploadHandler extends InputThreadTarget {
 	    } else if (fileType.equals("tthl"))
 		fType = DUEntity.TTHL_TYPE;
 
-	    if (isfirstUpload && fType != DUEntity.FILELIST_TYPE && !user.isGrantedExtraSlot() && um.getAllUHCount() >= jdcbot.getMaxUploadSlots()) {
+	    if (isfirstUpload && fType != DUEntity.FILELIST_TYPE && !user.isGrantedExtraSlot()
+		    && um.getAllUHCount() >= jdcbot.getMaxUploadSlots()) {
 		buffer = "$MaxedOut|";
 		try {
 		    SendCommand(buffer, socket);
 		    jdcbot.log.println("From bot: " + buffer);
 		} catch (Exception e) {
 		    jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
-		    e.printStackTrace();
+		    e.printStackTrace(jdcbot.log);
 		} finally {
 		    try {
 			socket.close();
 		    } catch (IOException e) {
 			jdcbot.log.println("Exception by socket.close() in upload(): " + e.getMessage());
-			e.printStackTrace();
+			e.printStackTrace(jdcbot.log);
 		    }
 		}
 		return;
@@ -148,7 +155,7 @@ public class UploadHandler extends InputThreadTarget {
 		    SendCommand(buffer, socket);
 		} catch (Exception e) {
 		    jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
-		    e.printStackTrace();
+		    e.printStackTrace(jdcbot.log);
 		}
 		jdcbot.log.println("From bot: " + buffer);
 		return;
@@ -168,30 +175,31 @@ public class UploadHandler extends InputThreadTarget {
 		}
 	    } catch (Exception e) {
 		jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
-		e.printStackTrace();
+		e.printStackTrace(jdcbot.log);
 	    }
 	}
 
 	if (in != null) {
-	    /*jdcbot.getDispatchThread().call(jdcbot, "onUploadStart", new Class[] { User.class, DUEntity.class }, user, due);*/
 	    jdcbot.getDispatchThread().callOnUploadStart(user, due);
 	    int len = 0, c;
 	    try {
 		while ((c = in.read()) != -1 && ++len <= fileLen && !close) {
+		    if (cancelUpload) {
+			throw new BotException(BotException.TRANSFER_CANCELLED);
+		    }
 		    socket.getOutputStream().write(c);
 		}
 		in.close();
+		jdcbot.getDispatchThread().callOnUploadComplete(user, due, true, null);
 	    } catch (IOException ioe) {
 		jdcbot.log.println("IOException in startUploads(): " + ioe.getMessage());
-		ioe.printStackTrace();
-		/*jdcbot.getDispatchThread().call(jdcbot, "onUploadComplete",
-		 new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, user, due, false,
-		 new BotException(ioe.getMessage(), BotException.IO_ERROR));*/
-		jdcbot.getDispatchThread().callOnUploadComplete(user, due, false, new BotException(ioe.getMessage(), BotException.IO_ERROR));
+		ioe.printStackTrace(jdcbot.log);
+		jdcbot.getDispatchThread()
+			.callOnUploadComplete(user, due, false, new BotException(ioe.getMessage(), BotException.IO_ERROR));
+	    } catch (BotException e) {
+		jdcbot.getDispatchThread().callOnUploadComplete(user, due, false, e);
 	    }
-	    /*jdcbot.getDispatchThread().call(jdcbot, "onUploadComplete",
-	     new Class[] { User.class, DUEntity.class, boolean.class, BotException.class }, user, due, true, null);*/
-	    jdcbot.getDispatchThread().callOnUploadComplete(user, due, true, null);
+	    cancelUpload = false;
 	}
     }
 

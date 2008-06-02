@@ -44,6 +44,9 @@ public class BotException extends Exception {
     static public final int NO_FREE_DOWNLOAD_SLOTS = 10;
     static public final int DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE = 11;
     static public final int IO_ERROR = 12;
+    static public final int TRANSFER_CANCELLED = 13;
+    static public final int PROTOCOL_UNSUPPORTED_BY_REMOTE = 14;
+    static public final int UPLOAD_TO_USER_BLOCKED = 15;
 
     private int error_code = 0;
     private String msg = "";
@@ -79,7 +82,7 @@ public class BotException extends Exception {
 		e = "Validate Denied";
 		break;
 	    case BAD_PASSWORD:
-		e = "Bad Password";
+		e = "Wrong Password";
 		break;
 	    case NOT_CONNECTED_TO_HUB:
 		e = "I am not conneced to any hub";
@@ -91,7 +94,7 @@ public class BotException extends Exception {
 		e = "Unexpected response";
 		break;
 	    case PROTOCOL_UNSUPPORTED:
-		e = "The protocol is not supported";
+		e = "The protocol or Extended feature is not supported by jDCBot";
 		break;
 	    case A_DOWNLOAD_WAS_NOT_REQUESTED:
 		e = "Download was not requested yet remote client wants to send data";
@@ -105,6 +108,17 @@ public class BotException extends Exception {
 	    case IO_ERROR:
 		e = "Input/Output error occured";
 		break;
+	    case TRANSFER_CANCELLED:
+		e = "File transfer has been cancelled";
+		break;
+	    case PROTOCOL_UNSUPPORTED_BY_REMOTE:
+		e = "Remote client doesn't support the requested protocol or Extended feature";
+		break;
+	    case UPLOAD_TO_USER_BLOCKED:
+		e = "Upload to user has been blocked";
+		break;
+	    default:
+		e = "Unknow error number";
 	}
 	return e;
     }

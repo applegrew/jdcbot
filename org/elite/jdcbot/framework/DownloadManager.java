@@ -27,7 +27,11 @@ import java.util.Map;
 
 /**
  * Created on 26-May-08<br>
- * This is used internall by the framework to schedule the downloads.
+ * This is used internall by the framework to schedule the downloads.<br>
+ * TODO: Create a thread that will make searches and search for alternative download sources.
+ * It must resolve the conflicts arising out of it among the different DownloadHandlers.
+ * TODO: On 2nd thought maybe this thread should be run in another class which will have
+ * reference to all running jDCBots (since on jDCBot handels only one hub). Or should jDCBot handel all the hubs?
  *
  * @author AppleGrew
  * @since 0.7
@@ -38,23 +42,23 @@ public class DownloadManager extends DCIO {
     private Map<String, DownloadHandler> allDH;
     private jDCBot jdcbot;
 
-    public DownloadManager(jDCBot bot) {
+    DownloadManager(jDCBot bot) {
 	jdcbot = bot;
 	allDH = Collections.synchronizedMap(new HashMap<String, DownloadHandler>());
     }
-    
-    protected synchronized void close(){
+
+    synchronized void close() {
 	Collection<DownloadHandler> dh = allDH.values();
-	for(DownloadHandler d:dh){
+	for (DownloadHandler d : dh) {
 	    d.close();
 	}
     }
 
-    protected synchronized void tasksComplete(DownloadHandler dh) {
+    synchronized void tasksComplete(DownloadHandler dh) {
 	allDH.remove(dh.getUserName());
     }
 
-    protected void download(DUEntity de, User u) throws BotException {
+    void download(DUEntity de, User u) throws BotException {
 	if (!u.isActive() && jdcbot.isPassive()) {
 	    throw new BotException(BotException.DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE);
 	}
@@ -68,7 +72,13 @@ public class DownloadManager extends DCIO {
 	dh.download(de);
     }
 
-    protected void download(String user, Socket socket, int N, String key) throws BotException {
+    synchronized void cancelDownload(DUEntity de, User u) {
+	DownloadHandler dh = allDH.get(u.username());
+	if (dh != null)
+	    dh.cancelDownload(de);
+    }
+
+    void download(String user, Socket socket, int N, String key) throws BotException {
 	if (!allDH.containsKey(user))
 	    throw new BotException(BotException.A_DOWNLOAD_WAS_NOT_REQUESTED);
 
@@ -86,7 +96,7 @@ public class DownloadManager extends DCIO {
 	    jdcbot.log.println("From bot: " + buffer);
 	} catch (Exception e) {
 	    jdcbot.log.println("Exception while sending raw command: " + e.getMessage());
-	    e.printStackTrace();
+	    e.printStackTrace(jdcbot.log);
 	}
 	allDH.get(user).notifyPassiveConnect(socket);
     }

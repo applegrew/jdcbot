@@ -42,7 +42,21 @@ public class DUEntity {
      * you need not supply 0 when you donot want to set anything. 
      */
     public static final int NO_SETTING = 0;
+    /**
+     * File lists are usually compressed as bzip2 files. jDCBot
+     * by default automatically decompresses such file lists.
+     * Set this flag if you want it to remain compressed.  
+     */
     public static final int NO_AUTO_FILELIST_DECOMPRESS_SETTING = 1;
+    /**
+     * Wheaher the entity is of type FILE or TTHL, now-a-days
+     * only TTHs are used to identify the files, so usually
+     * the field <i>file</i> will have a hash value. This
+     * hash value needs to be prefixed by a 'TTH/' string.
+     * If you donnot want to do that yourself then set this
+     * flag. 
+     */
+    public static final int AUTO_PREFIX_TTH_SETTING = 2;
 
     /**
      * The name or TTH of the file to download.
@@ -139,7 +153,7 @@ public class DUEntity {
     }
 
     public boolean isSettingSet(int flag) {
-	return (settingFlags & flag) == 1;
+	return (settingFlags & flag) != 0;
     }
 
     /**
@@ -158,4 +172,20 @@ public class DUEntity {
 	return settings;
     }
 
+    public boolean equals(Object o) {
+	if (o instanceof DUEntity) {
+	    DUEntity due = (DUEntity) o;
+	    if (this.fileType == due.fileType) {
+		if (this.fileType == FILELIST_TYPE)
+		    return true;
+		else if (this.file.equals(due.file) && this.start == due.start && this.len == due.len)
+		    return true;
+	    }
+	}
+	return false;
+    }
+
+    public String toString() {
+	return "{ " + getFileType() + " " + file + " " + start + " " + len + " }";
+    }
 }

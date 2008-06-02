@@ -39,10 +39,12 @@ import org.elite.jdcbot.shareframework.ShareManager;
  * class. All on<i>XYZ</i> methods in the PircBot class are automatically called when the event <i>XYZ</i> happens, so you would override these if
  * you wish to do something when it does happen.
  * 
- * @since 0.5
+ * TODO: Make this handel multiple hubs????
+ * 
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.7.1
+ * @since 0.5
+ * @version 0.7.2
  */
 public abstract class jDCBot extends InputThreadTarget {
 
@@ -274,15 +276,14 @@ public abstract class jDCBot extends InputThreadTarget {
     /**
      * Attempt to connect to the specified DC hub. The OnConnect method is called upon success.
      * 
-     * @param hostname
-     *                The hostname of the server to connect to.
+     * @param hostname The hostname of the server to connect to. 
      * 
-     * @throws Exception
+     * @throws IOException
      *                 if it was not possible to connect to the server.
      * @throws BotException
      *                 if the server would not let us join it because of bad password or if there exist user with the same name.
      */
-    public final void connect(String hostname, int port) throws Exception {
+    public final void connect(String hostname, int port) throws IOException, BotException {
 
 	String buffer;
 
@@ -339,7 +340,11 @@ public abstract class jDCBot extends InputThreadTarget {
 		_hubSupports = parseCmdArgs(buffer);
 	    }
 
-	    buffer = ReadCommand();
+	    try {
+		buffer = ReadCommand();
+	    } catch (IOException e) {
+		throw new BotException(buffer, BotException.IO_ERROR); //Sends the last read command (this will usually be a message from the hub).
+	    }
 	    log.println(buffer);
 	}
 
@@ -380,7 +385,7 @@ public abstract class jDCBot extends InputThreadTarget {
 	onConnect();
     }
 
-    public final Socket initConnectToMe(String user, String direction) throws Exception {
+    public final Socket initConnectToMe(String user, String direction) throws BotException, IOException {
 	if (!isConnected()) {
 	    throw new BotException(BotException.NOT_CONNECTED_TO_HUB);
 	}
@@ -401,7 +406,7 @@ public abstract class jDCBot extends InputThreadTarget {
 	try {
 	    newsocket = socketServer.accept();
 	} catch (SocketTimeoutException soce) {
-	    soce.printStackTrace();
+	    soce.printStackTrace(log);
 	    throw new SocketTimeoutException("Connection to client " + user + " timed out.");
 	}
 
@@ -491,7 +496,7 @@ public abstract class jDCBot extends InputThreadTarget {
 	return newsocket;
     }
 
-    private void replyConnectToMe(String user, String ip, int port) throws Exception { //Called in response to $ConnectToMe command from hub.
+    private void replyConnectToMe(String user, String ip, int port) throws BotException, IOException { //Called in response to $ConnectToMe command from hub.
 	if (!isConnected()) {
 	    throw new BotException(BotException.NOT_CONNECTED_TO_HUB);
 	}
@@ -578,7 +583,8 @@ public abstract class jDCBot extends InputThreadTarget {
 	quit();
 	uploadManager.close();
 	downloadManager.close();
-	_inputThread.stop();
+	if (_inputThread != null)
+	    _inputThread.stop();
 	dispatchThread.stopIt();
     }
 
@@ -682,7 +688,7 @@ public abstract class jDCBot extends InputThreadTarget {
 		    uploadManager.uploadPassive(remote_user);
 		} catch (BotException e) {
 		    log.println("BotException from uploadManager.uploadPassive(): " + e.getMessage());
-		    e.printStackTrace();
+		    e.printStackTrace(log);
 		}
 	    }
 	} else if (rawCommand.startsWith("$ConnectToMe")) {
@@ -695,7 +701,7 @@ public abstract class jDCBot extends InputThreadTarget {
 		replyConnectToMe(user, ip, port);
 	    } catch (Exception e) {
 		log.println("Exception by replyConnectToMe in handleCommand: " + e.getMessage());
-		e.printStackTrace();
+		e.printStackTrace(log);
 	    }
 	} else
 	    log.println("The command above is not handled.");
@@ -749,17 +755,18 @@ public abstract class jDCBot extends InputThreadTarget {
      * @param buffer
      *                Line which needs to be send. This method won't append "|" on the end on the string if it doesn't exist, so it is up to make
      *                sure buffer ends with "|" if you calling this method.
+     * @throws IOException On error while sending data into the socket.
      */
-    public final void SendCommand(String buffer) throws Exception {
+    public final void SendCommand(String buffer) throws IOException {
 	SendCommand(buffer, output);
     }
 
     /**
      * Reading command before InputThread is started (only for connecting).
-     * 
+     * @throws IOException On error while sending data into the socket.
      * @return Command from hub
      */
-    private final String ReadCommand() throws Exception {
+    private final String ReadCommand() throws IOException {
 	return ReadCommand(input);
     }
 
@@ -767,10 +774,10 @@ public abstract class jDCBot extends InputThreadTarget {
     /**
      * Sends public message on main chat.
      * 
-     * @param message
-     *                Message to be sent. It shouldn't end with "|".
+     * @param message Message to be sent. It shouldn't end with "|".
+     * @throws IOException On error while sending data into the socket.
      */
-    public final void SendPublicMessage(String message) throws Exception {
+    public final void SendPublicMessage(String message) throws IOException {
 	SendCommand("<" + _botname + "> " + message + "|");
     }
 
@@ -781,8 +788,9 @@ public abstract class jDCBot extends InputThreadTarget {
      *                User who will get message.
      * @param message
      *                Message to be sent. It shouldn't end with "|".
+     * @throws IOException On error while sending data into the socket.
      */
-    public final void SendPrivateMessage(String user, String message) throws Exception {
+    public final void SendPrivateMessage(String user, String message) throws IOException {
 	SendCommand("$To: " + user + " From: " + _botname + " $<" + _botname + "> " + message + "|");
     }
 
@@ -938,7 +946,7 @@ public abstract class jDCBot extends InputThreadTarget {
      * It is called when the bot quits. Just after it quits, as a side-effect of closing the socket, the onDisconnect() too is called.
      * 
      */
-    public void onBotQuit() {}
+    protected void onBotQuit() {}
 
     /**
      * Called upon disconnecting from hub.

@@ -1,0 +1,135 @@
+/*
+ * UploadEntityStream.java
+ *
+ * Copyright (C) 2008 AppleGrew
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+ */
+package org.elite.jdcbot.util;
+
+import java.io.IOException;
+import java.io.InputStream;
+
+/**
+ * Created on 02-Jun-08<br>
+ *
+ * @author AppleGrew
+ * @since 0.7.2
+ * @version 0.1
+ */
+public class UploadEntityStream extends InputStream {
+    private final int updateInterval = 1000; //After this interval is over the meter and constrainer are invoked.
+
+    private int updateCounter;
+    private Meter meter;
+    private Constrainer constrainer;
+    private InputStream in;
+
+    public UploadEntityStream(InputStream in) {
+	this(in, 0);
+    }
+
+    public UploadEntityStream(InputStream in, long total) {
+	super();
+	if (total == 0)
+	    meter = new Meter();
+	else
+	    meter = new Meter(total);
+	constrainer = new Constrainer();
+	this.in = in;
+	updateCounter = updateInterval;
+    }
+
+    public UploadEntityStream(InputStream in, long total, long transferLimit) {
+	this(in, total);
+	setTransferLimit(transferLimit);
+    }
+
+    public void setTotalStreamLength(long total) {
+	meter.setTotal(total);
+    }
+
+    /**
+     * In bytes per second.
+     * @param rate
+     */
+    public void setTransferLimit(double rate) {
+	constrainer.setTargetConstrainValue(rate);
+    }
+
+    public void revokeTransferLimit() {
+	constrainer.revokeConstrain();
+    }
+
+    @Override
+    public int read() throws IOException {
+	int v = in.read();
+	updateCounter--;
+	if (updateCounter <= 0 && v != -1) {
+	    updateCounter = updateInterval;
+	    meter.signalProgress(updateInterval);
+	    constrainer.constrain(meter.getRate(), meter.getTotalProgress());
+	}
+	return v;
+    }
+
+    @Override
+    public int read(byte b[]) throws IOException {
+	if (b == null)
+	    throw new NullPointerException("b is null");
+	return read(b, 0, b.length);
+    }
+
+    @Override
+    public int read(byte b[], int offset, int len) throws IOException {
+	if (b == null)
+	    throw new NullPointerException("b is null");
+	if (offset < 0 || offset + len > b.length)
+	    throw new IndexOutOfBoundsException("offset=" + offset + ", and offset+len=" + offset + len);
+
+	int cnt = in.read(b, offset, len);
+
+	updateCounter--;
+	if (updateCounter <= 0 && cnt != -1) {
+	    updateCounter = updateInterval;
+	    meter.signalProgress(cnt + updateInterval);
+	    constrainer.constrain(meter.getRate(), meter.getTotalProgress());
+	}
+	return cnt;
+    }
+
+    public double getPercentageCompletion() {
+	return meter.getPercentageCompletion();
+    }
+
+    /**
+     * Transfer rate in bytes per second.
+     * @return
+     */
+    public double getTransferRate() {
+	return meter.getRate();
+    }
+
+    private class Meter extends ProgressMeter {
+	public Meter() {}
+
+	public Meter(long total) {
+	    super(total);
+	}
+    }
+
+    private class Constrainer extends RateConstrainer {}
+
+}

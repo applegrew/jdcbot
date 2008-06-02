@@ -42,7 +42,7 @@ public class User {
 
     private String _username, _desc, _conn, _mail, _share, _tag, _supports, _ip;
     private int _flag;
-    private boolean _hasInfo, _op, extraSlotsGranted;
+    private boolean _hasInfo, _op, extraSlotsGranted, blockUploadToUser;
     private jDCBot _bot;
 
     public User(String username, jDCBot bot) {
@@ -53,6 +53,7 @@ public class User {
 	_ip = "";
 	_bot = bot;
 	extraSlotsGranted = false;
+	blockUploadToUser = false;
 	_flag = 1;
     }
 
@@ -68,6 +69,7 @@ public class User {
 	_ip = "";
 	_bot = bot;
 	extraSlotsGranted = false;
+	blockUploadToUser = false;
 	int index = _desc.indexOf('<');
 	if (index == -1)
 	    _tag = new String();
@@ -101,7 +103,6 @@ public class User {
 
     public void setSupports(String supports) {
 	_supports = supports;
-	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, _username);
 	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
@@ -111,7 +112,6 @@ public class User {
      */
     public void setOp(boolean flag) {
 	_op = flag;
-	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, _username);
 	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
@@ -130,7 +130,6 @@ public class User {
 
     public void setUserIP(String ip) {
 	_ip = ip;
-	//_bot.getDispatchThread().call(_bot, "onUpdateMyInfo", new Class[] { String.class }, _username);
 	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
@@ -263,6 +262,14 @@ public class User {
 	extraSlotsGranted = flag;
     }
 
+    public void setBlockUploadToUser(boolean flag) {
+	blockUploadToUser = flag;
+    }
+
+    public boolean isUploadToUserBlocked() {
+	return blockUploadToUser;
+    }
+
     public int getFlag() {
 	return _flag;
     }
@@ -286,6 +293,34 @@ public class User {
     public void downloadFileList(OutputStream os, int settings) throws BotException {
 	DUEntity de = new DUEntity(DUEntity.FILELIST_TYPE, os, settings);
 	_bot.downloadManager.download(de, this);
+    }
+
+    /**
+     * Cancels download of a file. The DUEntity must have file, fileType, start and len set to proper values to
+     * identify the download entity fully, others fields like os, in and settings are not checked, and hence can
+     * have any value.
+     * @param de The entity that should be cancelled.
+     */
+    public void cancelDownload(DUEntity de) {
+	_bot.downloadManager.cancelDownload(de, this);
+    }
+
+    public void cancelFileListDownload() {
+	DUEntity de = new DUEntity(DUEntity.FILELIST_TYPE, null, DUEntity.NO_SETTING);
+	_bot.downloadManager.cancelDownload(de, this);
+    }
+
+    public void cancelUpload() {
+	_bot.uploadManager.cancelUpoad(this);
+    }
+
+    public boolean equals(Object o) {
+	if (o instanceof User) {
+	    User u = (User) o;
+	    if (u.username().equals(username()))
+		return true;
+	}
+	return false;
     }
 
 }

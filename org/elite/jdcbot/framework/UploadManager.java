@@ -37,27 +37,33 @@ public class UploadManager extends DCIO {
     private Map<String, UploadHandler> allUH;
     private jDCBot jdcbot;
 
-    public UploadManager(jDCBot bot) {
+    UploadManager(jDCBot bot) {
 	jdcbot = bot;
 	allUH = Collections.synchronizedMap(new HashMap<String, UploadHandler>());
     }
 
-    protected synchronized void close() {
+    synchronized void close() {
 	Collection<UploadHandler> uh = allUH.values();
 	for (UploadHandler u : uh) {
 	    try {
 		u.close();
 	    } catch (IOException e) {
-		e.printStackTrace();
+		e.printStackTrace(jdcbot.log);
 	    }
 	}
     }
 
-    protected synchronized void tasksComplete(UploadHandler uh) {
+    synchronized void cancelUpoad(User u) {
+	UploadHandler uh = allUH.get(u.username());
+	if (uh != null)
+	    uh.cancelUpload();
+    }
+
+    synchronized void tasksComplete(UploadHandler uh) {
 	allUH.remove(uh.getUserName());
     }
 
-    protected synchronized int getAllUHCount() {
+    synchronized int getAllUHCount() {
 	return allUH.size();
     }
 
@@ -66,9 +72,12 @@ public class UploadManager extends DCIO {
      * @param user
      * @throws BotException
      */
-    protected void uploadPassive(String user) throws BotException {
+    void uploadPassive(String user) throws BotException {
 	if (!jdcbot.UserExist(user)) {
 	    throw new BotException(BotException.USRNAME_NOT_FOUND);
+	}
+	if(jdcbot.getUser(user).isUploadToUserBlocked()){
+	    throw new BotException(BotException.UPLOAD_TO_USER_BLOCKED);
 	}
 
 	Socket socket = null;
@@ -76,7 +85,7 @@ public class UploadManager extends DCIO {
 	    socket = jdcbot.initConnectToMe(user, "Upload");
 	} catch (Exception be) {
 	    jdcbot.log.println("Exception in DownloadHandler thread: " + be.getMessage());
-	    be.printStackTrace();
+	    be.printStackTrace(jdcbot.log);
 	    return;
 	}
 	UploadHandler uh;
@@ -96,9 +105,12 @@ public class UploadManager extends DCIO {
      * @param key
      * @throws BotException
      */
-    protected void upload(String user, Socket socket, int N, String key) throws BotException {
+    void upload(String user, Socket socket, int N, String key) throws BotException {
 	if (!jdcbot.UserExist(user)) {
 	    throw new BotException(BotException.USRNAME_NOT_FOUND);
+	}
+	if(jdcbot.getUser(user).isUploadToUserBlocked()){
+	    throw new BotException(BotException.UPLOAD_TO_USER_BLOCKED);
 	}
 
 	String buffer;
@@ -111,7 +123,7 @@ public class UploadManager extends DCIO {
 	    jdcbot.log.println("From bot: " + buffer);
 	} catch (Exception e) {
 	    jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
-	    e.printStackTrace();
+	    e.printStackTrace(jdcbot.log);
 	}
 
 	UploadHandler uh;
