@@ -1,3 +1,6 @@
+The changelog may not document all chnages made. Best
+way is view diffs at http://jdcbot.cvs.sourceforge.net/.
+
 -- v0.6 2005-09-12 --
 * Added UserMenager and User classes for easier work with users
 * Added MySQL support
@@ -5,3 +8,63 @@
 * Added KickUser method
 * Added WebPageFetcher and GoogleCalculation classes
 * Fixed some small bugs
+
+-- v0.7 2008-May-27 --
+* Grouped classes into sub-packages
+* Renamed UserMenager to UserManager
+* Client-Client protocol has been implemented
+* Hub-Client protocol enhanced to support EXTENDED protocol features
+
+-- v0.7 2008-May-31 --
+* Added BotEventDispatchThread to call particular protected methods of jDCBot in a different thread
+* Added DownloadBot (another bot for example)
+* Added a package sheriffbot which contains SheriffBot and its related classes
+* Fixed Bugs in the code portion that handels download and upload
+* Fixed various bugs in the framework
+
+-- v0.7.2 2008-June-2 --
+* Added bandwidth limit control classes for download and upload (in org.elite.jdcbot.util)
+	# Added DownloadEntityStream
+	# Added UploadEntityStream
+	# Added RateConstrainer
+	# Added ProgressMeter
+* Added download/upload cancel facility
+* Added DownloadBot2 which demostrates the new download features
+* More bug fix, primarily in download related code
+
+-- v1.0 2008-June-18 --
+* Added org.elite.jdcbot.shareframework.FilelistConverter
+* Added org.elite.jdcbot.shareframework.FileListManager
+* Added org.elite.jdcbot.shareframework.FLDir
+* Added org.elite.jdcbot.shareframework.FLFile
+* Added org.elite.jdcbot.shareframework.FLInterface
+* Added org.elite.jdcbot.shareframework.HashException
+* Added org.elite.jdcbot.shareframework.HashManager
+* Added org.elite.jdcbot.shareframework.HashUser
+* Added org.elite.jdcbot.shareframework.SearchResultSet
+* Added org.elite.jdcbot.shareframework.SearchSet
+* Added org.elite.jdcbot.shareframework.ShareException
+* Added org.elite.jdcbot.shareframework.ShareManagerListener
+* Added org.elite.jdcbot.shareframework.UploadStreamManager
+* Added org.elite.jdcbot.examples.DemoBot - This will be a full fledged client (which will have no UI but
+	will be controllable by another client). Its main purpose is to provide implementational guidelines
+	for user of jDCBot
+* Added org.elite.jdcbot.framework.BotInterface
+* Added org.elite.jdcbot.framework.DownloadCentral
+* Added org.elite.jdcbot.framework.GlobalObjects
+* Added org.elite.jdcbot.framework.MultiHubsAdapter - To provide easy method to connect to multiple hubs
+* Added org.elite.jdcbot.framework.UDPInputThread - To listen for UDP packets (which enclose the search results)
+* Added org.elite.jdcbot.framework.UDPInputThreadTarget
+* Renamed org.elite.jdcbot.util.UploadEntityStream to org.elite.jdcbot.util.InputEntityStream
+* Renamed org.elite.jdcbot.util.DownloadEntityStream to org.elite.jdcbot.util.OutputEntityStream
+	(DownloadEntityStream still exists but it is deprecated and performs no function, it notifies the user about this change)
+* Added org.elite.jdcbot.util.GlobalFunctions - It has some general purpose functions that is used by framework classes
+	and could be used by users of jDCBot too.
+* Fixed some major bugs in UploadHandler which made it unable to function at all
+* jDCBot now automatically responds to search queries from other users
+* Hashing of files, adding and removing files/directories to share has been implemented in ShareManager
+* ShareManager can now create XML bzip2 compressed file list
+* Can now parse XML bzip2 compressed file lists and convert that into instance of FileListManager, which
+	provides features like searching , quering and manipulating file lists. Manipulating downloaded
+	file lists of other users is useless though
+
