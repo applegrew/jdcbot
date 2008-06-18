@@ -22,10 +22,14 @@ package org.elite.jdcbot.framework;
 import java.io.InputStream;
 
 /**
- * Created on 27-May-08
+ * Created on 27-May-08<br>
+ * This provides timeout to the wrapped InputThread.
+ * When the timer expires it will close the wrapped
+ * InputThread.
  *
  * @author AppleGrew
- * 
+ * @since 0.7
+ * @version 0.1
  */
 public class TimeoutInputThread extends InputThread {
     private long timeout = 60000L;
@@ -41,12 +45,14 @@ public class TimeoutInputThread extends InputThread {
 	timer = new Timer();
     }
 
+    @Override
     protected void onReadingCommand() {
 	timer.stopIt();
 	timer = new Timer();
 	timer.start();
     }
 
+    @Override
     public void start() {
 	super.start();
     }

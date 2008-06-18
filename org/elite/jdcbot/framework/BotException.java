@@ -26,105 +26,130 @@ package org.elite.jdcbot.framework;
  * @since 0.5
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.7
+ * @version 1.0
  */
 public class BotException extends Exception {
 
     private static final long serialVersionUID = -6707371836754480742L;
 
-    static public final int NO_FREE_SLOTS = 1;
-    static public final int REMOTE_CLIENT_SENT_WRONG_USRNAME = 2;
-    static public final int VALIDATE_DENIED = 3;
-    static public final int BAD_PASSWORD = 4;
-    static public final int NOT_CONNECTED_TO_HUB = 5;
-    static public final int USRNAME_NOT_FOUND = 6;
-    static public final int UNEXPECTED_RESPONSE = 7;
-    static public final int PROTOCOL_UNSUPPORTED = 8;
-    static public final int A_DOWNLOAD_WAS_NOT_REQUESTED = 9;
-    static public final int NO_FREE_DOWNLOAD_SLOTS = 10;
-    static public final int DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE = 11;
-    static public final int IO_ERROR = 12;
-    static public final int TRANSFER_CANCELLED = 13;
-    static public final int PROTOCOL_UNSUPPORTED_BY_REMOTE = 14;
-    static public final int UPLOAD_TO_USER_BLOCKED = 15;
+    public static enum Error {
+	NONE,
+	NO_FREE_SLOTS,
+	REMOTE_CLIENT_SENT_WRONG_USERNAME,
+	VALIDATE_DENIED,
+	BAD_PASSWORD,
+	NOT_CONNECTED_TO_HUB,
+	USERNAME_NOT_FOUND,
+	UNEXPECTED_RESPONSE,
+	PROTOCOL_UNSUPPORTED,
+	A_DOWNLOAD_WAS_NOT_REQUESTED,
+	NO_FREE_DOWNLOAD_SLOTS,
+	DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE,
+	IO_ERROR,
+	TRANSFER_CANCELLED,
+	PROTOCOL_UNSUPPORTED_BY_REMOTE,
+	UPLOAD_TO_USER_BLOCKED,
+	FAILED_TO_DELETE_TEMP_FILE,
+	CONNECTION_TO_REMOTE_CLIENT_FAILED,
+	TIMEOUT;
 
-    private int error_code = 0;
+	/**
+	 * Returns a better explanatory message for the Error.
+	 */
+	public String toString() {
+	    String e;
+	    switch (this) {
+		case NONE:
+		    e = "No error";
+		    break;
+		case NO_FREE_SLOTS:
+		    e = "No free slots";
+		    break;
+		case REMOTE_CLIENT_SENT_WRONG_USERNAME:
+		    e = "Wrong username sent by remote client";
+		    break;
+		case VALIDATE_DENIED:
+		    e = "Validate Denied";
+		    break;
+		case BAD_PASSWORD:
+		    e = "Wrong Password";
+		    break;
+		case NOT_CONNECTED_TO_HUB:
+		    e = "I am not conneced to any hub";
+		    break;
+		case USERNAME_NOT_FOUND:
+		    e = "Username doesn't exists";
+		    break;
+		case UNEXPECTED_RESPONSE:
+		    e = "Unexpected response";
+		    break;
+		case PROTOCOL_UNSUPPORTED:
+		    e = "The protocol or Extended feature is not supported by jDCBot";
+		    break;
+		case A_DOWNLOAD_WAS_NOT_REQUESTED:
+		    e = "Download was not requested yet remote client wants to send data";
+		    break;
+		case NO_FREE_DOWNLOAD_SLOTS:
+		    e = "No free donwload slots";
+		    break;
+		case DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE:
+		    e = "This and remote clients both are passive, so download not possible";
+		    break;
+		case IO_ERROR:
+		    e = "Input/Output error occured";
+		    break;
+		case TRANSFER_CANCELLED:
+		    e = "File transfer has been cancelled";
+		    break;
+		case PROTOCOL_UNSUPPORTED_BY_REMOTE:
+		    e = "Remote client doesn't support the requested protocol or Extended feature";
+		    break;
+		case UPLOAD_TO_USER_BLOCKED:
+		    e = "Upload to user has been blocked";
+		    break;
+		case FAILED_TO_DELETE_TEMP_FILE:
+		    e = "Failed to delete temporary download file";
+		    break;
+		case CONNECTION_TO_REMOTE_CLIENT_FAILED:
+		    e = "Failed to connect to remote client";
+		    break;
+		case TIMEOUT:
+		    e = "Connection timed out";
+		    break;
+		default:
+		    e = "Unknow Error type";
+	    }
+	    return e;
+	}
+    }
+
+    private Error error = Error.NONE;
     private String msg = "";
 
     /**
      * Constructs a new BotException.
-     * 
-     * @param e
-     *                The error message to report.
+     * @param error
      */
-    public BotException(int errorCode) {
+    public BotException(Error error) {
 	super();
-	error_code = errorCode;
-	msg = code2msg(errorCode);
+	this.error = error;
+	msg = error.toString();
     }
 
-    public BotException(String e, int errorCode) {
+    /**
+     * This allows to set arbitrary message for the error. This is intended
+     * to be used only when IO_ERROR occurs.
+     * @param e
+     * @param error
+     */
+    public BotException(String e, Error error) {
 	super();
-	error_code = errorCode;
+	this.error = error;
 	msg = e;
     }
 
-    private String code2msg(int errorCode) {
-	String e = "Unknown Error";
-	switch (error_code) {
-	    case NO_FREE_SLOTS:
-		e = "No free slots";
-		break;
-	    case REMOTE_CLIENT_SENT_WRONG_USRNAME:
-		e = "Wrong username sent by remote client";
-		break;
-	    case VALIDATE_DENIED:
-		e = "Validate Denied";
-		break;
-	    case BAD_PASSWORD:
-		e = "Wrong Password";
-		break;
-	    case NOT_CONNECTED_TO_HUB:
-		e = "I am not conneced to any hub";
-		break;
-	    case USRNAME_NOT_FOUND:
-		e = "Username doesn't exists";
-		break;
-	    case UNEXPECTED_RESPONSE:
-		e = "Unexpected response";
-		break;
-	    case PROTOCOL_UNSUPPORTED:
-		e = "The protocol or Extended feature is not supported by jDCBot";
-		break;
-	    case A_DOWNLOAD_WAS_NOT_REQUESTED:
-		e = "Download was not requested yet remote client wants to send data";
-		break;
-	    case NO_FREE_DOWNLOAD_SLOTS:
-		e = "No free donwload slots";
-		break;
-	    case DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE:
-		e = "This and remote clients both are passive, so download not possible";
-		break;
-	    case IO_ERROR:
-		e = "Input/Output error occured";
-		break;
-	    case TRANSFER_CANCELLED:
-		e = "File transfer has been cancelled";
-		break;
-	    case PROTOCOL_UNSUPPORTED_BY_REMOTE:
-		e = "Remote client doesn't support the requested protocol or Extended feature";
-		break;
-	    case UPLOAD_TO_USER_BLOCKED:
-		e = "Upload to user has been blocked";
-		break;
-	    default:
-		e = "Unknow error number";
-	}
-	return e;
-    }
-
-    public int getErrCode() {
-	return error_code;
+    public Error getError() {
+	return error;
     }
 
     public String getMessage() {

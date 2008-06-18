@@ -1,5 +1,5 @@
 /*
- * DownloadEntityStream.java
+ * GlobalObjects.java
  *
  * Copyright (C) 2008 AppleGrew
  *
@@ -17,25 +17,22 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
  */
-package org.elite.jdcbot.util;
+package org.elite.jdcbot.framework;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.PrintStream;
 
 /**
- * Created on 16-Jun-08
+ * Created on 04-Jun-08<br>
+ * Common global objects used by all classes.
  *
  * @author AppleGrew
- * @deprecated <b>This class has been renamed.</b>
- * @see OutputEntityStream
- * @since 0.7.2
+ * @since 1.0
  * @version 0.1
  */
-public class DownloadEntityStream extends InputStream {
-
-    @Override
-    public int read() throws IOException {
-	return 0;
-    }
-
+public class GlobalObjects {
+    /**
+     * Initialized by jDCBot.
+     */
+    public static PrintStream log = System.out;
+    public static final String VERSION = "1.0";
 }

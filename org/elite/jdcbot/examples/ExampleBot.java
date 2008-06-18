@@ -53,7 +53,7 @@ public class ExampleBot extends jDCBot {
 
     public ExampleBot() {
 	//constructs our bot with 100GB share size and 3 slots
-	super("ExampleBot", "127.0.0.1", 9006, "", "This example bot", "LAN(T1)8", "", "107374182400", 3, 6, false, System.out);
+	super("ExampleBot", "127.0.0.1", 9006, 10006, "", "This example bot", "LAN(T1)8", "", "107374182400", 3, 6, false, System.out);
 	try {
 	    connect("127.0.0.1", 1411); //my local hub, change it to whatever yours is/
 	} catch (BotException e) {

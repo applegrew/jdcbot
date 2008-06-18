@@ -28,11 +28,13 @@ import java.io.OutputStream;
  * Holds everything about user (description, e-mail, sharesize...)
  * 
  * @since 0.6
- * @author  Kokanovic Branko
+ * @author Kokanovic Branko
  * @author AppleGrew
- * @version    0.7.1
+ * @version 0.8
  */
 public class User {
+    private final int HASH_CONST = 51;
+
     public static final int NORMAL_FLAG = 1;
     public static final int AWAY_FLAG = 2;
     public static final int SERVER_FLAG = 4;
@@ -44,17 +46,27 @@ public class User {
     private int _flag;
     private boolean _hasInfo, _op, extraSlotsGranted, blockUploadToUser;
     private jDCBot _bot;
+    private String _CID;
+
+    private int hashCode = -1;
 
     public User(String username, jDCBot bot) {
-	_username = username;
-	_hasInfo = false;
-	_op = false;
-	_supports = "";
-	_ip = "";
-	_bot = bot;
-	extraSlotsGranted = false;
-	blockUploadToUser = false;
-	_flag = 1;
+	this(username, "", "", "", "0", bot);
+
+	/*_username = username;
+	 _hasInfo = false;
+	 _op = false;
+	 _supports = "";
+	 _ip = "";
+	 _bot = bot;
+	 extraSlotsGranted = false;
+	 blockUploadToUser = false;
+	 _flag = 1;
+	 _tag = "";
+	 _CID = "";
+	 _conn = "";
+	 init();
+	 */
     }
 
     public User(String username, String desc, String conn, String mail, String share, jDCBot bot) {
@@ -70,19 +82,26 @@ public class User {
 	_bot = bot;
 	extraSlotsGranted = false;
 	blockUploadToUser = false;
+	_CID = "";
+
 	int index = _desc.indexOf('<');
 	if (index == -1)
 	    _tag = new String();
 	else
 	    _tag = _desc.substring(_desc.indexOf('<') + 1, _desc.length() - 1);
 
-	String flag = _conn.substring(_conn.length() - 1, _conn.length());
-	try {
-	    Integer.parseInt(flag);
-	    if ((_conn.length() - 2) >= 0 && _conn.charAt(_conn.length() - 2) == '1')
-		flag = "1" + flag;
-	} catch (NumberFormatException nfe) {
+	String flag;
+	if (_conn.length() == 0)
 	    flag = "1";
+	else {
+	    flag = _conn.substring(_conn.length() - 1, _conn.length());
+	    try {
+		Integer.parseInt(flag);
+		if ((_conn.length() - 2) >= 0 && _conn.charAt(_conn.length() - 2) == '1')
+		    flag = "1" + flag;
+	    } catch (NumberFormatException nfe) {
+		flag = "1";
+	    }
 	}
 	_flag = Integer.parseInt(flag);
 	if (_flag == 3)
@@ -95,10 +114,34 @@ public class User {
 	    _flag = 8;
 	else if (_flag == 11)
 	    _flag = 10;
+
+	init();
+    }
+
+    private void init() {
+	hashCode = 1;
+	hashCode = hashCode * HASH_CONST + _username.hashCode();
+	hashCode = hashCode * HASH_CONST + (_bot == null ? 0 : _bot.getHubSignature().hashCode());
+    }
+
+    public String getClientID() {
+	return _CID;
+    }
+
+    public void setClientID(String CID) {
+	_CID = CID;
+    }
+
+    public String getHubSignature() {
+	return _bot.getHubSignature();
     }
 
     public boolean hasInfo() {
 	return _hasInfo;
+    }
+
+    public jDCBot getBot() {
+	return _bot;
     }
 
     public void setSupports(String supports) {
@@ -262,6 +305,12 @@ public class User {
 	extraSlotsGranted = flag;
     }
 
+    /**
+     * To block this user from downloading any
+     * files from you.
+     * @param flag Set this to ture to enable this, else false.
+     * @see org.elite.jdcbot.shareframework.ShareManager#canUpload(User,String)
+     */
     public void setBlockUploadToUser(boolean flag) {
 	blockUploadToUser = flag;
     }
@@ -291,7 +340,7 @@ public class User {
      * @throws BotException 
      */
     public void downloadFileList(OutputStream os, int settings) throws BotException {
-	DUEntity de = new DUEntity(DUEntity.FILELIST_TYPE, os, settings);
+	DUEntity de = new DUEntity(DUEntity.Type.FILELIST, "", 0, -1, os, settings);
 	_bot.downloadManager.download(de, this);
     }
 
@@ -306,7 +355,7 @@ public class User {
     }
 
     public void cancelFileListDownload() {
-	DUEntity de = new DUEntity(DUEntity.FILELIST_TYPE, null, DUEntity.NO_SETTING);
+	DUEntity de = new DUEntity(DUEntity.Type.FILELIST, "");
 	_bot.downloadManager.cancelDownload(de, this);
     }
 
@@ -314,13 +363,27 @@ public class User {
 	_bot.uploadManager.cancelUpoad(this);
     }
 
+    @Override
     public boolean equals(Object o) {
+	if (this == o)
+	    return true;
+
 	if (o instanceof User) {
 	    User u = (User) o;
-	    if (u.username().equals(username()))
+	    if (u.username().equals(username()) && u.getHubSignature().equals(getHubSignature()))
 		return true;
 	}
 	return false;
+    }
+
+    @Override
+    public int hashCode() {
+	return hashCode;
+    }
+
+    @Override
+    public String toString() {
+	return _username + "@" + getHubSignature() + " CID:" + _CID == null ? "unknown" : _CID;
     }
 
 }

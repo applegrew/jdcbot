@@ -62,6 +62,8 @@ public abstract class ProgressMeter {
 
     protected void reset() {
 	progress = 0;
+	startTime = -1;
+	isPaused = false;
     }
 
     protected void pause() {

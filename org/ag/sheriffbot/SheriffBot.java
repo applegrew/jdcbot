@@ -79,26 +79,29 @@ public class SheriffBot extends jDCBot {
     public SheriffBot(PrintStream outputLog) {
 	// constructs our bot with 0B share size and 3 slots, which updates
 	// file list every 30mins.
-	this("127.0.0.1", 1411, "127.0.0.1", 9000, "0", 3, 1000 * 60 * 30, "./", "", false, outputLog);
+	this("127.0.0.1", 1411, "127.0.0.1", 9000, 10000, "0", 3, 1000 * 60 * 30, "./", "", false, outputLog);
     }
 
-    public SheriffBot(String hubIP, int hubPort, String sharesizeInBytes, String hubpass, String botIP, int listenPort, String filelistDir,
-	    boolean active, PrintStream outputLog) {
+    public SheriffBot(String hubIP, int hubPort, String sharesizeInBytes, String hubpass, String botIP, int listenPort, int UDP_listenPort,
+	    String filelistDir, boolean active, PrintStream outputLog) {
 	// constructs our bot with 10GB share size and 3 slots, which updates
 	// file list every 6hr.
-	this(hubIP, hubPort, botIP, listenPort, sharesizeInBytes, 3, 6 * 60 * 60 * 1000, filelistDir, hubpass, !active, outputLog);
+	this(hubIP, hubPort, botIP, listenPort, UDP_listenPort, sharesizeInBytes, 3, 6 * 60 * 60 * 1000, filelistDir, hubpass, !active,
+		outputLog);
     }
 
-    public SheriffBot(String hubIP, int hubPort, String botIP, int listenPort, String sharesizeInBytes, int noOfSlots, int updateInterval,
-	    String filelistDir, String hubPass, boolean passive, PrintStream outputLog) {
-	super("SheriffBot", botIP, listenPort, hubPass, "Monitor Bot", "LAN(T1)1", "", sharesizeInBytes, noOfSlots, 4, passive, outputLog);
+    public SheriffBot(String hubIP, int hubPort, String botIP, int listenPort, int UDP_listenPort, String sharesizeInBytes, int noOfSlots,
+	    int updateInterval, String filelistDir, String hubPass, boolean passive, PrintStream outputLog) {
+	super("SheriffBot", botIP, listenPort, UDP_listenPort, hubPass, "Monitor Bot", "LAN(T1)1", "", sharesizeInBytes, noOfSlots, 4,
+		passive, outputLog);
 
 	_updateInterval = updateInterval;
 	_hubIP = hubIP;
 	filelistDir = filelistDir.trim().replace('\\', '/');
-	_filelistDir = filelistDir.equals("") ? "" : filelistDir.substring(0, filelistDir.endsWith("/") ? filelistDir.length() - 1 : filelistDir
-		.length())
-		+ "/";
+	_filelistDir =
+		filelistDir.equals("") ? "" : filelistDir.substring(0, filelistDir.endsWith("/") ? filelistDir.length() - 1 : filelistDir
+			.length())
+			+ "/";
 
 	authorizedUsers = new HashMap<String, String>();
 	authorizedUsers.put("applegrew", "127.0.0.1"); //applegrew when logged-in into hub with 127.0.0.1 is authorized to command SheriffBot.
@@ -129,14 +132,14 @@ public class SheriffBot extends jDCBot {
      * Prints on main chat that we are here and starts flood thread.
      */
     public void onConnect() {
-	tt = new TimerThread(this, _updateInterval, "UpdateFileListThread", 1 * 60 * 1000) {// The first list update will start after 1mins to
-	    // allow collection of user infos.
-	    protected void onTimer() {
-		((SheriffBot) _bot).updateFilelists();
-		((SheriffBot) _bot).clearIndexedUsersList();
-	    }
+	tt = new TimerThread(this, _updateInterval, "UpdateFileListThread", 5 * 60 * 1000) {// The first list update will start after 5mins to
+		    // allow collection of user infos.
+		    protected void onTimer() {
+			((SheriffBot) _bot).updateFilelists();
+			((SheriffBot) _bot).clearIndexedUsersList();
+		    }
 
-	};
+		};
 	tt.start();
 
 	uth = new UserListDownloadThread();
@@ -190,7 +193,6 @@ public class SheriffBot extends jDCBot {
     public void onDisconnect() {
 	if (!isShuttingDown)
 	    log.println("Disconnected from hub");
-	super.onDisconnect();
 	while (!isShuttingDown && !isConnected()) {
 	    // Try to reconnect to the hub after waiting for sometime.
 	    try {
@@ -279,7 +281,7 @@ public class SheriffBot extends jDCBot {
 
     private boolean authorized(String user) {
 	String ip = authorizedUsers.get(user.toLowerCase());
-	if (ip != null)
+	if (ip != null && ip.equals(_ip.getHostAddress()))
 	    return true;
 	else
 	    return false;
@@ -316,7 +318,7 @@ public class SheriffBot extends jDCBot {
 	    /*
 	     * Trimming the first line of the file list which is
 	     * <?xml version="1.0" encoding="utf-8" standalone="yes"?>\n
-	     * */
+	     */
 	    byte b2[] = new byte[b.length - 57];
 	    System.arraycopy(b, 57, b2, 0, b2.length);
 	    b = null;
@@ -401,15 +403,13 @@ public class SheriffBot extends jDCBot {
 	System.setErr(System.out);
 	if (args.length == 0)
 	    new SheriffBot(System.out);
-	else if (args.length == 8) {
-	    new SheriffBot(args[0], Integer.parseInt(args[1]), args[6], args[5], args[2], Integer.parseInt(args[3]), args[4], Boolean
-		    .parseBoolean(args[7]), System.out);
+	else if (args.length == 9) {
+	    new SheriffBot(args[0], Integer.parseInt(args[1]), args[7], args[6], args[2], Integer.parseInt(args[3]), Integer
+		    .parseInt(args[4]), args[5], Boolean.parseBoolean(args[8]), System.out);
 	} else
-	    System.out
-		    .println("Wrong number of arguments.\n"
-			    + "Accepted arguments are:\n"
-			    + "none or\n"
-			    + "HubIP HubPort TheIPOnWhichTheBotIsRunning ThePortOnWhichTheBotShouldListen TheDirectoryWhereFileListsShouldBeSaved BotPass ShareSize IsActive(give true/false)");
+	    System.out.println("Wrong number of arguments.\n" + "Accepted arguments are:\n" + "none or\n"
+		    + "HubIP HubPort TheIPOnWhichTheBotIsRunning ThePortOnWhichTheBotShouldListen "
+		    + "ThePortToListenForUDPPackets TheDirectoryWhereFileListsShouldBeSaved BotPass ShareSize IsActive(give true/false)");
 
     }
 }

@@ -21,11 +21,9 @@
 package org.ag.sheriffbot;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -38,13 +36,11 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.apache.tools.bzip2.CBZip2InputStream;
+import org.elite.jdcbot.util.GlobalFunctions;
 import org.xml.sax.Attributes;
-import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
-import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.helpers.XMLReaderFactory;
 
 /**
  * Use this to search dumps created by SheriffBot.<br>
@@ -52,11 +48,12 @@ import org.xml.sax.helpers.XMLReaderFactory;
  * Using this you can search for vareity of information in the dumps. Just give it the directory name of the dump files
  * and give it the search query. Run it to learn about the options it supports.<br>
  * <p>
- * Please note though, that the XML parser that this uses seems to use too much processing power and is quite slow.
+ * Please note though, that this uses seems to use too much processing power and is quite slow. I still don't know
+ * where the bottleneck is. If you find out the bottleneck then do let me know.
  * 
  * @author AppleGrew
  * @since 0.7.1
- * @version 0.1
+ * @version 0.1.1
  * 
  */
 public class FilelistDumpSearcher {
@@ -71,7 +68,7 @@ public class FilelistDumpSearcher {
 	    System.out
 		    .println("-H stands for hub name. It takes the name of the hub. The results retured are from hubs with such similar names only.");
 	}
-	
+
 	FilelistDumpSearcher fds = new FilelistDumpSearcher();
 
 	boolean showTTH = false;
@@ -89,7 +86,7 @@ public class FilelistDumpSearcher {
 		    type = FilelistHandler.DIR;
 		else {
 		    System.err.println("Wrong type: " + args[i + 1]);
-		    System.err.println("Arguments passed:\n"+arr2Str(args));
+		    System.err.println("Arguments passed:\n" + arr2Str(args));
 		    System.exit(1);
 		}
 		i++;
@@ -108,12 +105,12 @@ public class FilelistDumpSearcher {
 	}
 	if (dumpLoc == null) {
 	    System.err.println("No dump file location given.");
-	    System.err.println("Arguments passed:\n"+arr2Str(args));
+	    System.err.println("Arguments passed:\n" + arr2Str(args));
 	    System.exit(1);
 	}
 	if (i > args.length - 1) {
 	    System.err.println("No serach term given.");
-	    System.err.println("Arguments passed:\n"+arr2Str(args));
+	    System.err.println("Arguments passed:\n" + arr2Str(args));
 	    System.exit(1);
 	}
 
@@ -148,15 +145,15 @@ public class FilelistDumpSearcher {
 	    System.out.print(FilelistDumpSearcher.Vector2String(FilelistDumpSearcher.removeDuplicates(res)));
 	} else {
 	    System.err.println(dumpLoc + " is an invalid location.");
-	    System.err.println("Arguments passed:\n"+arr2Str(args));
+	    System.err.println("Arguments passed:\n" + arr2Str(args));
 	    System.exit(1);
 	}
 	System.out.println();
     }
-    
-    public static String arr2Str(String arr[]){
+
+    public static String arr2Str(String arr[]) {
 	String r = "";
-	for(String a:arr)
+	for (String a : arr)
 	    r = r + a + "\n";
 	return r;
     }
@@ -171,49 +168,52 @@ public class FilelistDumpSearcher {
 	    BufferedInputStream ubin = new BufferedInputStream(new FileInputStream(dumpfile));
 	    ubin.read(new byte[2]); //To discard the starting BZ flag.
 	    CBZip2InputStream bin = new CBZip2InputStream(ubin);
-	    
+
 	    String line = null;
-	    int c=0;
+	    int c = 0;
 	    line = "";
-	    while((c=bin.read())!='\n' && c!=-1) line = line + (char) c;
+	    while ((c = bin.read()) != '\n' && c != -1)
+		line = line + (char) c;
 	    String dnt = line;
-	    if (c==-1){
-		dnt="";
+	    if (c == -1) {
+		dnt = "";
 		return null;
 	    }
-	    
+
 	    line = "";
-	    while((c=bin.read())!='\n' && c!=-1) line = line + (char) c;
-	    if(c==-1)
+	    while ((c = bin.read()) != '\n' && c != -1)
+		line = line + (char) c;
+	    if (c == -1)
 		return null;
-	    
+
 	    if (!phpSerialize)
-		results.add("Dump's Date and Time stamp: " + dnt + "\n==========================\n"+"hubname: " + line);
+		results.add("Dump's Date and Time stamp: " + dnt + "\n==========================\n" + "hubname: " + line);
 	    else
-		results.add("$" + dnt +"\n"+"|" + line);
-	    
-	    if(hubname!=null && !line.trim().toLowerCase().contains(hubname.toLowerCase().subSequence(0, hubname.length()))){
+		results.add("$" + dnt + "\n" + "|" + line);
+
+	    if (hubname != null && !line.trim().toLowerCase().contains(hubname.toLowerCase().subSequence(0, hubname.length()))) {
 		results.add("No hits.");
 		return results;
 	    }
-	    
-	    while((c=bin.read())!='\n' && c!=-1);
-	    
-	    FilelistHandler handler = new FilelistHandler(srfor,type,size,showTTH,phpSerialize,hubname,results);
+
+	    while ((c = bin.read()) != '\n' && c != -1)
+		;
+
+	    FilelistHandler handler = new FilelistHandler(srfor, type, size, showTTH, phpSerialize, results);
 	    //parser.setContentHandler(handler);
-	    try{
+	    try {
 		parser.parse(bin, handler);
 		//InputSource insrc = new InputSource(bin);
 		//insrc.setEncoding("UTF-8");
 		//parser.parse(insrc);
-	    }catch(org.xml.sax.SAXParseException saxe){
+	    } catch (org.xml.sax.SAXParseException saxe) {
 		saxe.printStackTrace();
 	    }
-	    
-	    if(results.size()==1){
+
+	    if (results.size() == 1) {
 		results.add("No hits.");
 	    }
-	    
+
 	} catch (FileNotFoundException e) {
 	    // TODO Auto-generated catch block
 	    e.printStackTrace();
@@ -225,7 +225,7 @@ public class FilelistDumpSearcher {
 	} catch (SAXParseException e) {
 	    // TODO Auto-generated catch block
 	    e.printStackTrace();
-	    System.err.println("Line: "+e.getLineNumber()+"; Col:"+e.getColumnNumber());
+	    System.err.println("Line: " + e.getLineNumber() + "; Col:" + e.getColumnNumber());
 	} catch (SAXException e) {
 	    // TODO Auto-generated catch block
 	    e.printStackTrace();
@@ -247,7 +247,7 @@ public class FilelistDumpSearcher {
 	    }
 	    if (!dup)
 		vec.insertElementAt(res.get(i), 0);
-		//vec.add(res.get(i));
+	    //vec.add(res.get(i));
 	}
 	return vec;
     }
@@ -270,44 +270,32 @@ public class FilelistDumpSearcher {
 
     private class FilelistHandler extends DefaultHandler {
 	static final int USER = 0;
-
 	static final int FILE = 1;
-
 	static final int DIR = 2;
-
 	static final int ANY = 3;
-
 	static final int UNKNOWN = 4;
 
 	private Vector<String> results;
-
 	Vector<String> dirs = new Vector<String>();
 
 	private String srfor;
-
+	private String srforArr[];
 	private int type;
-
-	private int level = -1;
-
 	private long size;
-
 	private boolean showTTH;
-
 	private boolean phpSerialize;
 
-	private String hubname;
-
 	private String currentUser;
-
 	private String currentIP;
+	private String pwd = "";
 
-	public FilelistHandler(String Srfor, int Type, long Size, boolean ShowTTH, boolean PhpSerialize, String Hubname, Vector<String> res) {
+	public FilelistHandler(String Srfor, int Type, long Size, boolean ShowTTH, boolean PhpSerialize, Vector<String> res) {
 	    srfor = Srfor.trim().toLowerCase();
+	    srforArr = srfor.split(" ");
 	    type = Type;
 	    size = Size;
 	    showTTH = ShowTTH;
 	    phpSerialize = PhpSerialize;
-	    hubname = Hubname;
 	    results = res;
 	}
 
@@ -320,7 +308,7 @@ public class FilelistDumpSearcher {
 
 	    if (qname.equalsIgnoreCase("Directory")) {
 		value = attrs.getValue("Name");
-		dirs.add(attrs.getValue("Name"));
+		dirs.add(value);
 		currType = DIR;
 
 	    } else if (qname.equalsIgnoreCase("user")) {
@@ -335,11 +323,14 @@ public class FilelistDumpSearcher {
 		currType = FILE;
 	    }
 
+	    if (currType == DIR)
+		pwd = getPwd(dirs);
+
 	    if (currType == FILE || currType == DIR) {
 		// Searching.
 		boolean found = false;
-		result = currentUser + ":" + currentIP + ":" + (currType == FILE && showTTH ? TTH + ":" : "") + getPwd(dirs);
-		if (result.trim().toLowerCase().contains(srfor.subSequence(0, srfor.length())) || currType == FILE && TTH.equalsIgnoreCase(srfor)) {
+		result = currentUser + ":" + currentIP + ":" + (currType == FILE && showTTH ? TTH + ":" : "") + pwd;
+		if (GlobalFunctions.matches(srforArr, result) || currType == FILE && TTH.equalsIgnoreCase(srfor)) {
 		    found = true;
 		}
 		if (type != ANY && currType != type)
@@ -369,7 +360,7 @@ public class FilelistDumpSearcher {
 		    results.add(result); // ADDING THE RESULT.
 		}
 	    }
-	    Thread.yield();
+	    //Thread.yield();
 	}
 
 	public void endElement(String uri, String lname, String qname) throws SAXException {
@@ -386,6 +377,14 @@ public class FilelistDumpSearcher {
 	    return pwd;
 	}
 
+	/**
+	 * Helper function to convert to PHP serialized form, so that
+	 * the output of this program can be automatically converted to
+	 * PHP array. I infact prepared a website for it. ;-)
+	 * @param index
+	 * @param s
+	 * @return
+	 */
 	private String serializeEntity(int index, String s) {
 	    return "i:" + index + ";s:" + s.length() + ":\"" + s + "\";";
 	}

@@ -1,5 +1,5 @@
 /*
- * DownloadEntityStream.java
+ * UDPInputThreadTarget.java
  *
  * Copyright (C) 2008 AppleGrew
  *
@@ -17,25 +17,34 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
  */
-package org.elite.jdcbot.util;
+package org.elite.jdcbot.framework;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
- * Created on 16-Jun-08
+ * Created on 06-Jun-08<br>
+ * This must be implemeneted by
+ * classes that want to listen for UDP
+ * connections.
  *
  * @author AppleGrew
- * @deprecated <b>This class has been renamed.</b>
- * @see OutputEntityStream
- * @since 0.7.2
+ * @since 1.0
  * @version 0.1
  */
-public class DownloadEntityStream extends InputStream {
+public interface UDPInputThreadTarget {
 
-    @Override
-    public int read() throws IOException {
-	return 0;
-    }
+    /**
+     * Called when {@link UDPInputThread} is closed
+     * due to an exception.
+     */
+    void onUDPExceptionClose(IOException e);
+
+    /**
+     * Called when a new UDP packet is read.
+     * @param string The content of the packet.
+     * @param hostName The host's IP from which the packet was sent.
+     * @param port The port of the remote host that was used.
+     */
+    public void handleUDPCommand(String rawCommand, String ip, int port);
 
 }

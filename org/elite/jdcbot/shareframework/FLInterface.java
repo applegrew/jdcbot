@@ -1,5 +1,5 @@
 /*
- * DownloadEntityStream.java
+ * FLInterface.java
  *
  * Copyright (C) 2008 AppleGrew
  *
@@ -17,25 +17,16 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
  */
-package org.elite.jdcbot.util;
-
-import java.io.IOException;
-import java.io.InputStream;
+package org.elite.jdcbot.shareframework;
 
 /**
- * Created on 16-Jun-08
+ * Created on 11-Jun-08<br>
+ * This interface defines nothing but
+ * it allows to create a single combined
+ * collection of FLDir and FLFile objects.
  *
  * @author AppleGrew
- * @deprecated <b>This class has been renamed.</b>
- * @see OutputEntityStream
- * @since 0.7.2
+ * @since 1.0
  * @version 0.1
  */
-public class DownloadEntityStream extends InputStream {
-
-    @Override
-    public int read() throws IOException {
-	return 0;
-    }
-
-}
+public interface FLInterface {}

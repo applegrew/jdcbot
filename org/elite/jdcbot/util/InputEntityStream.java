@@ -1,5 +1,5 @@
 /*
- * UploadEntityStream.java
+ * InputEntityStream.java
  *
  * Copyright (C) 2008 AppleGrew
  *
@@ -26,10 +26,10 @@ import java.io.InputStream;
  * Created on 02-Jun-08<br>
  *
  * @author AppleGrew
- * @since 0.7.2
- * @version 0.1
+ * @since 1.0
+ * @version 0.1.1
  */
-public class UploadEntityStream extends InputStream {
+public class InputEntityStream extends InputStream {
     private final int updateInterval = 1000; //After this interval is over the meter and constrainer are invoked.
 
     private int updateCounter;
@@ -37,11 +37,11 @@ public class UploadEntityStream extends InputStream {
     private Constrainer constrainer;
     private InputStream in;
 
-    public UploadEntityStream(InputStream in) {
+    public InputEntityStream(InputStream in) {
 	this(in, 0);
     }
 
-    public UploadEntityStream(InputStream in, long total) {
+    public InputEntityStream(InputStream in, long total) {
 	super();
 	if (total == 0)
 	    meter = new Meter();
@@ -52,7 +52,11 @@ public class UploadEntityStream extends InputStream {
 	updateCounter = updateInterval;
     }
 
-    public UploadEntityStream(InputStream in, long total, long transferLimit) {
+    public void setInputStream(InputStream in) {
+	this.in = in;
+    }
+
+    public InputEntityStream(InputStream in, long total, long transferLimit) {
 	this(in, total);
 	setTransferLimit(transferLimit);
     }
@@ -62,8 +66,18 @@ public class UploadEntityStream extends InputStream {
     }
 
     /**
-     * In bytes per second.
-     * @param rate
+     * The progress till now will be lost, but
+     * the original stream length and other values will be retained.
+     * Use {@link #setTotalStreamLength(long) setTotalStreamLength}
+     * to set stream length to new value.
+     */
+    public void resetProgress() {
+	meter.reset();
+    }
+
+    /**
+     * To disable limiting transfer rate set this to &lt;=0.
+     * @param rate In bytes per second.
      */
     public void setTransferLimit(double rate) {
 	constrainer.setTargetConstrainValue(rate);
@@ -108,6 +122,12 @@ public class UploadEntityStream extends InputStream {
 	    constrainer.constrain(meter.getRate(), meter.getTotalProgress());
 	}
 	return cnt;
+    }
+
+    @Override
+    public void close() throws IOException {
+	in.close();
+	super.close();
     }
 
     public double getPercentageCompletion() {

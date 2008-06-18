@@ -23,10 +23,11 @@ package org.elite.jdcbot.framework;
 import java.io.*;
 
 /**
- * Threads that reads raw commands from hub and passes them to jDCBot.
+ * Threads that reads raw commands from hub and passes them to classes
+ * that implement InputThreadTarget.
  *
  * @since 0.5
- * @author  Kokanovic Branko
+ * @author Kokanovic Branko
  * @author AppleGrew
  * @version 0.7
  * 
@@ -55,14 +56,14 @@ public class InputThread extends DCIO implements Runnable {
 		rawCommand = this.ReadCommand(_in);
 		if ((rawCommand == null) || (rawCommand.length() == 0)) {
 		    running = false;
-		    _inputThreadTrgt.onDisconnect();
+		    _inputThreadTrgt.disconnected();
 		} else
 		    _inputThreadTrgt.handleCommand(rawCommand);
 		onReadingCommand();
 	    }
 	} catch (Exception e) {
-	    e.printStackTrace();
-	    _inputThreadTrgt.onDisconnect();
+	    e.printStackTrace(GlobalObjects.log);
+	    _inputThreadTrgt.disconnected();
 	}
     }
 
@@ -72,11 +73,11 @@ public class InputThread extends DCIO implements Runnable {
      * Starts the InputThread thread.
      */
     public void start() {
-	Thread th = new Thread(this);
+	Thread th = new Thread(this, "InputThread");
 	if (th.getState() == Thread.State.NEW) {
 	    running = true;
 	    th.start();
-	    System.out.println("new InputThread thread started.");
+	    GlobalObjects.log.println("new InputThread thread started.");
 	} else
 	    throw new IllegalThreadStateException("Thread is already running");
     }

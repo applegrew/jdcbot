@@ -21,6 +21,7 @@ package org.elite.jdcbot.framework;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 
 /**
  * Created on 26-May-08<br>
@@ -31,10 +32,19 @@ import java.io.OutputStream;
  * @version 0.2
  * 
  */
-public class DUEntity {
-    public static final int FILE_TYPE = 1;
-    public static final int FILELIST_TYPE = 2;
-    public static final int TTHL_TYPE = 3;
+public class DUEntity implements Serializable {
+    private static final long serialVersionUID = 682551418657251180L;
+    private final int HASH_CONST = 81;
+
+    /**
+     * The file type.
+     * @author AppleGrew
+     * @since 0.8
+     * @version 0.1
+     */
+    public static enum Type {
+	FILE, FILELIST, TTHL
+    }
 
     /**
      * This setting is set to zero, i.e. it sets and means nothing.
@@ -61,25 +71,31 @@ public class DUEntity {
     /**
      * The name or TTH of the file to download.
      */
-    public String file;
+    private String file;
     /**
      * The OutputStream to which the downloaded file is to be written.
      */
-    public OutputStream os;
+    private OutputStream os;
     /**
      * The InputStream from which the file to be uploaded is to be read.
      */
-    public InputStream in;
+    private InputStream in;
     /**
      * The starting byte offset of the file from which to start download. Usually this will be 0.
      */
-    public long start;
+    private long start;
     /**
      * The total number of bytes starting from <i>start</i> of the file to download. This will be -1 for file lists.
+     * <b>Note:</b> That it is total bytes to be uploaded or downloaded, i.e. if out of 100 bytes of a file if
+     * 5 bytes have been already downloaded and due an interruption the connection broke, then during re-connection
+     * <i>start</i> will be 5 and this will be 95 and <b>not</b> 100.  
      */
-    public long len;
+    private long len;
 
-    public int fileType = FILE_TYPE;
+    /**
+     * The file type.
+     */
+    private Type fileType = Type.FILE;
 
     /**
      * It is used to set some flags like, if you donot want the downloaded file list to be automatically decompressed by
@@ -87,37 +103,64 @@ public class DUEntity {
      * {@link  #setSetting(int) setSetting} to set the setting and {@link #unsetSetting(int) unsetSetting } to unset
      * an already set setting.
      */
-    public int settingFlags = 0;
+    private int settingFlags = 0;
 
-    public DUEntity() {}
+    private int hashCode = -1;
 
-    public DUEntity(int fileType, String file2Download, int Start, int Len, OutputStream OS, int settings) {
-	this.fileType = fileType;
+    /**
+     * This constructor initializes <i>start</i> to 0 and <i>len</i>
+     * to -1.
+     */
+    public DUEntity(Type filetype, String file2Download) {
+	this.fileType = filetype;
+	file = file2Download;
+
+	start = 0;
+	len = -1;
+	in = null;
+	os = null;
+	settingFlags = 0;
+	init();
+    }
+
+    public DUEntity(Type filetype, String file2Download, long Start, long Len) {
+	this.fileType = filetype;
+	file = file2Download;
+	start = Start;
+	len = Len;
+
+	in = null;
+	os = null;
+	settingFlags = 0;
+	init();
+    }
+
+    public DUEntity(Type filetype, String file2Download, long Start, long Len, OutputStream OS) {
+	this(filetype, file2Download, Start, Len, OS, NO_SETTING);
+    }
+
+    public DUEntity(Type filetype, String file2Download, long Start, long Len, OutputStream OS, int settings) {
+	this.fileType = filetype;
 	file = file2Download;
 	start = Start;
 	len = Len;
 	os = OS;
 	settingFlags = settings;
+	init();
     }
 
-    public DUEntity(int fileType, OutputStream OS, int settings) {
-	this.fileType = fileType;
-	os = OS;
-	settingFlags = settings;
+    public DUEntity(Type filetype, String file2Download, long Start, long Len, InputStream IN) {
+	this(filetype, file2Download, Start, Len, IN, NO_SETTING);
     }
 
-    public DUEntity(int fileType, String file2Download, int Start, int Len, InputStream IN, int settings) {
-	this.fileType = fileType;
+    public DUEntity(Type filetype, String file2Download, long Start, long Len, InputStream IN, int settings) {
+	this.fileType = filetype;
 	file = file2Download;
 	start = Start;
 	len = Len;
 	in = IN;
 	settingFlags = settings;
-    }
-
-    public DUEntity(int fileType, InputStream IN) {
-	this.fileType = fileType;
-	in = IN;
+	init();
     }
 
     public DUEntity(DUEntity due) {
@@ -128,20 +171,64 @@ public class DUEntity {
 	this.in = due.in;
 	this.os = due.os;
 	this.settingFlags = due.settingFlags;
+	this.hashCode = due.hashCode;
+	init();
     }
 
-    public DUEntity getDummyCopy() {
-	DUEntity due = new DUEntity(this);
-	due.in = null;
-	due.os = null;
-	return due;
+    private void init() {
+	if (fileType == Type.FILELIST || file == null)
+	    hashCode = 0;
+	else {
+	    hashCode = file.hashCode();
+	}
+	hashCode += HASH_CONST;
+    }
+
+    public String file() {
+	return file;
+    }
+
+    public Type fileType() {
+	return fileType;
     }
 
     public String getFileType() {
 	String ftype = "file";
-	if (fileType == TTHL_TYPE)
+	if (fileType == Type.TTHL)
 	    ftype = "tthl";
 	return ftype;
+    }
+
+    public long start() {
+	return start;
+    }
+
+    public void start(long newValue) {
+	start = newValue;
+    }
+
+    public long len() {
+	return len;
+    }
+
+    public void len(long newValue) {
+	len = newValue;
+    }
+
+    public InputStream in() {
+	return in;
+    }
+
+    public void in(InputStream newStream) {
+	in = newStream;
+    }
+
+    public OutputStream os() {
+	return os;
+    }
+
+    public void os(OutputStream newStream) {
+	os = newStream;
     }
 
     public void setSetting(int flag) {
@@ -154,6 +241,10 @@ public class DUEntity {
 
     public boolean isSettingSet(int flag) {
 	return (settingFlags & flag) != 0;
+    }
+
+    public void resetSetting() {
+	settingFlags = 0;
     }
 
     /**
@@ -172,19 +263,29 @@ public class DUEntity {
 	return settings;
     }
 
+    @Override
     public boolean equals(Object o) {
+	if (this == o)
+	    return true;
+
 	if (o instanceof DUEntity) {
 	    DUEntity due = (DUEntity) o;
 	    if (this.fileType == due.fileType) {
-		if (this.fileType == FILELIST_TYPE)
+		if (this.fileType == Type.FILELIST)
 		    return true;
-		else if (this.file.equals(due.file) && this.start == due.start && this.len == due.len)
+		else if (this.file.equals(due.file))
 		    return true;
 	    }
 	}
 	return false;
     }
 
+    @Override
+    public int hashCode() {
+	return hashCode;
+    }
+
+    @Override
     public String toString() {
 	return "{ " + getFileType() + " " + file + " " + start + " " + len + " }";
     }

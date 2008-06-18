@@ -20,7 +20,11 @@
 package org.elite.jdcbot.framework;
 
 /**
- * Created on 26-May-08
+ * Created on 26-May-08<br>
+ * This must be implemented if you
+ * want to listen for commands on
+ * TCP connection.
+ * 
  * @since 0.7
  * @author AppleGrew
  * @version 0.1
@@ -37,5 +41,5 @@ public class InputThreadTarget extends DCIO {
      * Called by InputThread on socket disconnection. 
      *
      */
-    protected void onDisconnect(){}
+    protected void disconnected(){}
 }

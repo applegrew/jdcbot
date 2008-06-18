@@ -22,25 +22,58 @@ package org.elite.jdcbot.framework;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
-import java.util.zip.DeflaterInputStream;
+import java.util.zip.DeflaterOutputStream;
 
 import org.elite.jdcbot.shareframework.ShareManager;
 
 /**
  * Created on 26-May-08<br>
- * Handels all the uploads to a single user for a session.
+ * Handles all the uploads to a single user for a session.
+ * <p>
+ * The framework manages this hence you need not bother
+ * about this.
  *
  * @author AppleGrew
- * @since 0.7.2
- * @version 0.1.2
+ * @since 0.7
+ * @version 0.1.3
  */
 public class UploadHandler extends InputThreadTarget {
+    private final int BUFF_SIZE = 64 * 1024; //64 KB
+
     private Socket socket;
     private UploadManager um;
     private jDCBot jdcbot;
     private ShareManager sm;
     private TimeoutInputThread inputThread = null;
+    /**
+     * This variable is important so fair upload
+     * policy can be enforced. It would be better
+     * to explain using an example.
+     * <p>
+     * If suppose <b>S</b> is a special user who has
+     * been granted an extra slot, and <b>N</b> is a normal
+     * user who has no extra slot granted to him.
+     * <p>
+     * If we have only one upload slot open and <b>N</b> starts
+     * a download first and now <b>S</b> later tries to download;
+     * if we donot use this variable then running upload of
+     * <b>N</b> will be interrupted by <b>S</b> and <b>N</b> will suddenly get
+     * the no free slots error. This is unfair to <b>N</b>.
+     * <p>
+     * Another possible implementation without using this
+     * variable too <i>seems</i> good. It is that we instead
+     * query from UploadManager about number of running uploads
+     * to normal users only. But, this too has a problem of
+     * being too liberal about uploading. Suppose if we have
+     * only one upload slot open and <b>S</b> is already
+     * downloading from us, if at that moment if <b>N</b>
+     * tries to download then he too would be allowed to
+     * download. This time refusing to user <b>N</b> wouldn't
+     * have been rude, yet we are alowing two uploads instead
+     * of one.
+     */
     private boolean isfirstUpload = true;
     private User user;
     private volatile boolean close;
@@ -57,16 +90,17 @@ public class UploadHandler extends InputThreadTarget {
     }
 
     public void startUploads() {
-	if (inputThread == null)
+	if (inputThread == null) {
 	    try {
 		inputThread = new TimeoutInputThread(this, socket.getInputStream());
 	    } catch (IOException e) {
 		jdcbot.log.println("IOException by socket.getInputStream() in startUploads(): " + e.getMessage());
 		e.printStackTrace(jdcbot.log);
 	    }
-	cancelUpload = false;
-	isfirstUpload = true;
-	inputThread.start();
+	    cancelUpload = false;
+	    isfirstUpload = true;
+	    inputThread.start();
+	}
     }
 
     public String getUserName() {
@@ -80,6 +114,14 @@ public class UploadHandler extends InputThreadTarget {
 	socket = null;
     }
 
+    /**
+     * Cancels the currently running upload.
+     * It won't affect the next upload to the user.
+     * Infact if the remote client retries to get
+     * that file again then it won't affect that
+     * attempt. You will need to invoke this
+     * mathod again then.
+     */
     public void cancelUpload() {
 	cancelUpload = true;
     }
@@ -90,121 +132,161 @@ public class UploadHandler extends InputThreadTarget {
     }
 
     public void upload(String cmd) { //Called by inputThread thread only.
-	if (socket == null)
+	if (socket == null) {
+	    cancelUpload = false;
 	    return;
+	}
 
 	jdcbot.log.println("From remote client:" + cmd);
 
 	boolean ZLIG = false;
 	InputStream in = null;
+	OutputStream os = null;
 	long fileLen = 0;
 	String buffer;
 	DUEntity due = null;
 
-	if (cmd.startsWith("$ADCGET")) {
-	    String params[] = parseRawCmd(cmd); //Parsing $ADCGET F S LZ then //Z is ' ZL1' or nothing
-	    String fileType = params[1].toLowerCase().trim();
-	    String file = params[2];
-	    long start = Long.parseLong(params[3]);
-	    fileLen = Long.parseLong(params[4]);
-	    String Z = params[params.length - 1]; //Using this weird method because Z may or may not be present.
+	try {
+	    if (cmd.startsWith("$ADCGET")) {
+		String params[] = parseRawCmd(cmd); //Parsing $ADCGET F S LZ then //Z is ' ZL1' or nothing
+		String fileType = params[1].toLowerCase().trim();
+		String file = params[2];
+		long start = Long.parseLong(params[3]);
+		fileLen = Long.parseLong(params[4]);
+		String Z = params[params.length - 1]; //Using this weird method because Z may or may not be present.
 
-	    if (Z.equalsIgnoreCase("ZL1"))
-		ZLIG = true;
+		if (Z.equalsIgnoreCase("ZL1"))
+		    ZLIG = true;
 
-	    int fType = DUEntity.FILE_TYPE;
-	    if (fileType.equals("file")) {
-		if (file.equals("files.xml.bz2") || file.equals("MyList.bz2"))
-		    fType = DUEntity.FILELIST_TYPE;
-		else
-		    fType = DUEntity.FILE_TYPE;
-	    } else if (fileType.equals("tthl"))
-		fType = DUEntity.TTHL_TYPE;
+		DUEntity.Type fType = DUEntity.Type.FILE;
+		if (fileType.equals("file")) {
+		    if (file.equals("files.xml.bz2") || file.equals("MyList.bz2"))
+			fType = DUEntity.Type.FILELIST;
+		    else
+			fType = DUEntity.Type.FILE;
+		} else if (fileType.equals("tthl"))
+		    fType = DUEntity.Type.TTHL;
 
-	    if (isfirstUpload && fType != DUEntity.FILELIST_TYPE && !user.isGrantedExtraSlot()
-		    && um.getAllUHCount() >= jdcbot.getMaxUploadSlots()) {
-		buffer = "$MaxedOut|";
-		try {
-		    SendCommand(buffer, socket);
-		    jdcbot.log.println("From bot: " + buffer);
-		} catch (Exception e) {
-		    jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
-		    e.printStackTrace(jdcbot.log);
-		} finally {
+		if (isfirstUpload && fType != DUEntity.Type.FILELIST && !user.isGrantedExtraSlot() && jdcbot.getFreeUploadSlots() <= 0) {
+		    buffer = "$MaxedOut|";
 		    try {
-			socket.close();
-		    } catch (IOException e) {
-			jdcbot.log.println("Exception by socket.close() in upload(): " + e.getMessage());
+			SendCommand(buffer, socket);
+			jdcbot.log.println("From bot: " + buffer);
+		    } catch (Exception e) {
+			jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
+			e.printStackTrace(jdcbot.log);
+		    } finally {
+			try {
+			    socket.close();
+			} catch (IOException e) {
+			    jdcbot.log.println("Exception by socket.close() in upload(): " + e.getMessage());
+			    e.printStackTrace(jdcbot.log);
+			}
+		    }
+		    cancelUpload = false;
+		    return;
+		}
+
+		if (fType != DUEntity.Type.FILELIST)
+		    isfirstUpload = false;
+
+		try {
+		    if (fType == DUEntity.Type.FILELIST)
+			due = sm.getFileList();
+		    else
+			due = sm.getFile(user, file, fType, start, fileLen);
+		} catch (FileNotFoundException e1) {
+		    buffer = "$Error " + e1.getMessage() + "|";
+		    try {
+			SendCommand(buffer, socket);
+		    } catch (Exception e) {
+			jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
 			e.printStackTrace(jdcbot.log);
 		    }
+		    jdcbot.log.println("From bot: " + buffer);
+		    cancelUpload = false;
+		    return;
 		}
-		return;
-	    }
 
-	    if (fType != DUEntity.FILELIST_TYPE)
-		isfirstUpload = false;
-
-	    try {
-		if (fType == DUEntity.FILELIST_TYPE)
-		    due = sm.getFileList();
-		else
-		    due = sm.getFile(file, fType, start, fileLen);
-	    } catch (FileNotFoundException e1) {
-		buffer = "$Error " + e1.getMessage() + "|";
 		try {
-		    SendCommand(buffer, socket);
+		    in = due.in();
+		    fileLen = due.len();
+		    if (ZLIG) {
+			buffer = "$ADCSND " + due.getFileType() + " " + file + " " + due.start() + " " + due.len() + " ZL1|";
+			SendCommand(buffer, socket);
+			jdcbot.log.println("From bot: " + buffer);
+		    } else {
+			buffer = "$ADCSND " + due.getFileType() + " " + file + " " + due.start() + " " + due.len() + "|";
+			SendCommand(buffer, socket);
+			jdcbot.log.println("From bot: " + buffer);
+		    }
 		} catch (Exception e) {
 		    jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
 		    e.printStackTrace(jdcbot.log);
+		    cancelUpload = false;
+		    return;
 		}
-		jdcbot.log.println("From bot: " + buffer);
+	    } else {
+		jdcbot.log.println("Unsupported protocol requested by remote client. Command sent was: " + cmd);
+		cancelUpload = false;
 		return;
 	    }
 
 	    try {
-		if (ZLIG) {
-		    in = due.in;
-		    buffer = "$ADCSend " + due.getFileType() + " " + due.file + " " + due.start + " " + due.len + " ZL1|";
-		    SendCommand(buffer, socket);
-		    jdcbot.log.println("From bot: " + buffer);
-		} else {
-		    in = new DeflaterInputStream(due.in);
-		    buffer = "$ADCSend " + due.getFileType() + " " + due.file + " " + due.start + " " + due.len + "|";
-		    SendCommand(buffer, socket);
-		    jdcbot.log.println("From bot: " + buffer);
-		}
-	    } catch (Exception e) {
-		jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
+		if (ZLIG)
+		    os = new DeflaterOutputStream(socket.getOutputStream());
+		else
+		    os = socket.getOutputStream();
+	    } catch (IOException e) {
+		jdcbot.log.println("IOException while getting OutputStream of the socket in upload(): " + e.getMessage());
 		e.printStackTrace(jdcbot.log);
+		cancelUpload = false;
+		return;
 	    }
-	}
 
-	if (in != null) {
-	    jdcbot.getDispatchThread().callOnUploadStart(user, due);
-	    int len = 0, c;
-	    try {
-		while ((c = in.read()) != -1 && ++len <= fileLen && !close) {
-		    if (cancelUpload) {
-			throw new BotException(BotException.TRANSFER_CANCELLED);
+	    if (in != null && os != null) {
+		jdcbot.getDispatchThread().callOnUploadStart(user, due);
+		int c;
+		byte buff[] = new byte[BUFF_SIZE];
+		try {
+		    while ((c = in.read(buff)) != -1 && !close) {
+			if (cancelUpload) {
+			    throw new BotException(BotException.Error.TRANSFER_CANCELLED);
+			}
+			os.write(buff, 0, c);
 		    }
-		    socket.getOutputStream().write(c);
+		    in.close();
+		    if (os instanceof DeflaterOutputStream)
+			((DeflaterOutputStream) os).finish();
+		    else
+			os.flush();
+		    jdcbot.getDispatchThread().callOnUploadComplete(user, due, true, null);
+		} catch (IOException ioe) {
+		    jdcbot.log.println("IOException in startUploads(): " + ioe.getMessage());
+		    ioe.printStackTrace(jdcbot.log);
+		    jdcbot.getDispatchThread().callOnUploadComplete(user, due, false,
+			    new BotException(ioe.getMessage(), BotException.Error.IO_ERROR));
+		} catch (BotException e) {
+		    jdcbot.getDispatchThread().callOnUploadComplete(user, due, false, e);
 		}
-		in.close();
-		jdcbot.getDispatchThread().callOnUploadComplete(user, due, true, null);
-	    } catch (IOException ioe) {
-		jdcbot.log.println("IOException in startUploads(): " + ioe.getMessage());
-		ioe.printStackTrace(jdcbot.log);
-		jdcbot.getDispatchThread()
-			.callOnUploadComplete(user, due, false, new BotException(ioe.getMessage(), BotException.IO_ERROR));
-	    } catch (BotException e) {
-		jdcbot.getDispatchThread().callOnUploadComplete(user, due, false, e);
+		cancelUpload = false;
+		
+	    } else {
+		jdcbot.log.println("InputStream or OutputStream was null hence no data was sent. IN==" + in + ", OUT==" + os);
 	    }
+	} finally {
+	    if (in != null)
+		try {
+		    in.close();
+		} catch (IOException e) {
+		    e.printStackTrace(jdcbot.log);
+		}
 	    cancelUpload = false;
 	}
     }
 
     @Override
-    public void onDisconnect() {
+    public void disconnected() {
 	um.tasksComplete(this);
     }
 }

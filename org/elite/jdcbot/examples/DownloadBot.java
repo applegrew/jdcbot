@@ -49,6 +49,7 @@ public class DownloadBot extends jDCBot {
 	super("DownloadBot", //Bot's name
 		"127.0.0.1", //Bot's IP
 		9020, //Bot's listen port
+		10020, //Bot's listen port for UDP packets
 		"", //Password
 		"I Download U", //Description
 		"LAN(T1)1", //Connection type
@@ -119,26 +120,22 @@ public class DownloadBot extends jDCBot {
 		return;
 	    }
 
-	    DUEntity due = new DUEntity();
-	    due.fileType = DUEntity.FILE_TYPE;
-	    //due.file = "TTH/" + tth; No need to prefix to 'TTH/' manually anymore, just set the following flag.
-	    due.file = tth;
-	    due.setSetting(DUEntity.AUTO_PREFIX_TTH_SETTING);
-
 	    File file = new File(name);
 	    if (file.exists()) {
 		pm(user, "Cannot download. A file with this name already exists in download directory.");
 		return;
 	    }
 
+	    BufferedOutputStream os;
 	    try {
-		due.os = new BufferedOutputStream(new FileOutputStream(file));
+		os = new BufferedOutputStream(new FileOutputStream(file));
 	    } catch (FileNotFoundException e) {
 		e.printStackTrace(log);
 		return;
 	    }
-	    due.start = 0;
-	    due.len = size;
+
+	    //due.file = "TTH/" + tth; No need to prefix to 'TTH/' manually anymore, just set the following flag.
+	    DUEntity due = new DUEntity(DUEntity.Type.FILE, tth, 0, size, os, DUEntity.AUTO_PREFIX_TTH_SETTING);
 
 	    try {
 		getUser(user).download(due);
@@ -159,7 +156,8 @@ public class DownloadBot extends jDCBot {
     }
 
     protected void onDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
-	pm(user.username(), "I just now " + (success ? "successfully" : "unsuccessfully") + " completed download of " + due.file + " from you.");
+	pm(user.username(), "I just now " + (success ? "successfully" : "unsuccessfully") + " completed download of " + due.file()
+		+ " from you.");
 	if (!success) {
 	    pm(user.username(), "I got this exception: " + e.getMessage());
 	}

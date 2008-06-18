@@ -27,11 +27,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Created on 26-May-08
+ * Created on 26-May-08<br>
+ * Manages all the uploads to all the users.
+ * <p>
+ * The framework handels this hence you need not bother
+ * about this.
  *
  * @author AppleGrew
  * @since 0.7
- * @version 0.1
+ * @version 0.1.1
  */
 public class UploadManager extends DCIO {
     private Map<String, UploadHandler> allUH;
@@ -74,10 +78,10 @@ public class UploadManager extends DCIO {
      */
     void uploadPassive(String user) throws BotException {
 	if (!jdcbot.UserExist(user)) {
-	    throw new BotException(BotException.USRNAME_NOT_FOUND);
+	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 	}
-	if(jdcbot.getUser(user).isUploadToUserBlocked()){
-	    throw new BotException(BotException.UPLOAD_TO_USER_BLOCKED);
+	if (jdcbot.getUser(user).isUploadToUserBlocked()) {
+	    throw new BotException(BotException.Error.UPLOAD_TO_USER_BLOCKED);
 	}
 
 	Socket socket = null;
@@ -107,10 +111,10 @@ public class UploadManager extends DCIO {
      */
     void upload(String user, Socket socket, int N, String key) throws BotException {
 	if (!jdcbot.UserExist(user)) {
-	    throw new BotException(BotException.USRNAME_NOT_FOUND);
+	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 	}
-	if(jdcbot.getUser(user).isUploadToUserBlocked()){
-	    throw new BotException(BotException.UPLOAD_TO_USER_BLOCKED);
+	if (jdcbot.getUser(user).isUploadToUserBlocked()) {
+	    throw new BotException(BotException.Error.UPLOAD_TO_USER_BLOCKED);
 	}
 
 	String buffer;

@@ -31,7 +31,7 @@ import org.elite.jdcbot.framework.BotException;
 import org.elite.jdcbot.framework.DUEntity;
 import org.elite.jdcbot.framework.User;
 import org.elite.jdcbot.framework.jDCBot;
-import org.elite.jdcbot.util.DownloadEntityStream;
+import org.elite.jdcbot.util.OutputEntityStream;
 
 /**
  * Created on 02-Jun-08<br>
@@ -52,7 +52,7 @@ import org.elite.jdcbot.util.DownloadEntityStream;
  * </ul>
  *
  * @author AppleGrew
- * @since 0.7.2
+ * @since 1.0
  * @version 0.1.1
  */
 public class DownloadBot2 extends jDCBot {
@@ -63,6 +63,7 @@ public class DownloadBot2 extends jDCBot {
 	super("DownloadBot2", //Bot's name
 		"127.0.0.1", //Bot's IP
 		9020, //Bot's listen port
+		10020, //Bot's listen port for UDP packets
 		"", //Password
 		"I Download U Really!", //Description
 		"LAN(T1)1", //Connection type
@@ -138,14 +139,8 @@ public class DownloadBot2 extends jDCBot {
 		    return;
 		}
 
-		DUEntity due = new DUEntity();
-		due.fileType = DUEntity.FILE_TYPE;
-		//due.file = "TTH/" + tth; No need to prefix to 'TTH/' manually anymore, just set the following flag.
-		due.file = tth;
+		DUEntity due = new DUEntity(DUEntity.Type.FILE, tth, 0, size);
 		due.setSetting(DUEntity.AUTO_PREFIX_TTH_SETTING);
-
-		due.start = 0;
-		due.len = size;
 
 		if (download) {//Start download
 		    File file = new File(name);
@@ -155,7 +150,7 @@ public class DownloadBot2 extends jDCBot {
 		    }
 
 		    try {
-			due.os = new DownloadEntityStream(new BufferedOutputStream(new FileOutputStream(file)), size, transferLimit);
+			due.os(new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(file)), size, transferLimit));
 		    } catch (FileNotFoundException e) {
 			e.printStackTrace(log);
 			return;
@@ -179,8 +174,8 @@ public class DownloadBot2 extends jDCBot {
 		pm(user, "New Transfer Limit is now " + msg + " MBps");
 
 		for (DUEntity due : allDU) {
-		    if (due.os instanceof DownloadEntityStream) {
-			DownloadEntityStream des = (DownloadEntityStream) due.os;
+		    if (due.os() instanceof OutputEntityStream) {
+			OutputEntityStream des = (OutputEntityStream) due.os();
 			des.setTransferLimit(transferLimit);
 		    }
 		}
@@ -200,9 +195,14 @@ public class DownloadBot2 extends jDCBot {
     }
 
     protected void onDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
-	pm(user.username(), "I just now " + (success ? "successfully" : "unsuccessfully") + " completed download of " + due.file + " from you."
+	pm(user.username(), "I just now "
+		+ (success ? "successfully" : "unsuccessfully")
+		+ " completed download of "
+		+ due.file()
+		+ " from you."
 		+ "Average transfer rate was "
-		+ (due.os instanceof DownloadEntityStream ? ((DownloadEntityStream) due.os).getTransferRate() / 1024 / 1024 + " MBps" : "N/A"));
+		+ (due.os() instanceof OutputEntityStream ? ((OutputEntityStream) due.os()).getTransferRate() / 1024 / 1024 + " MBps"
+			: "N/A"));
 	if (!success) {
 	    pm(user.username(), "I got this exception: " + e.getMessage());
 	}

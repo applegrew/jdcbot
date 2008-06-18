@@ -31,9 +31,9 @@ import java.util.*;
  * You should rather add methods in jDCBot (example is GetRandomUser in jDCBot class)
  * 
  * @since 0.6
- * @author  Kokanovic Branko
+ * @author Kokanovic Branko
  * @author AppleGrew
- * @version    0.7.1
+ * @version 0.8
  */
 public class UserManager {
     private Vector<User> users;
@@ -177,6 +177,24 @@ public class UserManager {
     }
 
     /**
+     * Returns users with matching IPs.<br>
+     * <b>Note:</b> All users' ip addresses may not be available.
+     * @param ip The IP of the user or a regular expression for the IP.
+     * @param isRegx If you are using a regular expression for
+     * to (for example) find users in a range of IP addresses, then
+     * set this to true.
+     * @return The list of users with matching IPs.
+     */
+    public Vector<User> getUserByIP(String ip, boolean isRegx) {
+	Vector<User> ru = new Vector<User>();
+	for (User u : users) {
+	    if (isRegx ? u.getUserIP().matches(ip) : u.getUserIP().equals(ip))
+		ru.add(u);
+	}
+	return ru;
+    }
+
+    /**
      * Gets everything about user.
      * 
      * @param user
@@ -193,6 +211,14 @@ public class UserManager {
 		 else*/
 		return u;
 	    }
+	}
+	return null;
+    }
+
+    public User getUserByCID(String CID) {
+	for (User u : users) {
+	    if (u.getClientID() != null && u.getClientID().equalsIgnoreCase(CID))
+		return u;
 	}
 	return null;
     }
@@ -273,11 +299,9 @@ public class UserManager {
     /**
      * Sends message to all user on the hub
      * 
-     * @param pm
-     *                Message to be sent
-     * @param timeout
-     *                Timeout inteval in milliseconds between to private
-     *                messages
+     * @param pm Message to be sent
+     * @param timeout Timeout inteval in milliseconds between to private
+     * messages
      */
     public void SendAll(String pm, long timeout) {
 	SendingAll sa = new SendingAll(pm, timeout);

@@ -25,19 +25,24 @@ package org.elite.jdcbot.util;
  *
  * @author AppleGrew
  * @since 0.7.2
- * @version 0.1
+ * @version 0.1.1
  */
 public abstract class RateConstrainer {
     private double targetConstrain = -1;
 
     /**
-     * Sets the target rate.
+     * Sets the target rate. To disable contrain set this to &lt;=0, or
+     * better call {@link #revokeConstrain()}.
      * @param targetRate The target rate in units per <b>second</b>.
      */
     public void setTargetConstrainValue(double targetRate) {
 	targetConstrain = targetRate;
     }
 
+    /**
+     * Disables constrain on rate.
+     *
+     */
     public void revokeConstrain() {
 	targetConstrain = -1;
     }
@@ -50,8 +55,13 @@ public abstract class RateConstrainer {
     public void constrain(double currentRate, long currentTotalProgress) {
 	if (targetConstrain <= 0 || currentRate <= 0)
 	    return;
-	
-	/*
+
+	/* 
+	 * ===================================================================
+	 * Below is a note about how I deduced the formula to calculate the
+	 * period of time to sleep so that rate can be constrained to a value.
+	 * ===================================================================
+	 * 
 	 * Let a = currentTotalProgress,
 	 * r = currentRate, and
 	 * R = targetConstrain.
@@ -61,8 +71,8 @@ public abstract class RateConstrainer {
 	 * If r > R the we must sleep to make r decrease to R.
 	 * 
 	 * When we wake from sleep 'a' will still be the same but time would have increased, hence the final rate
-	 * then would be (r~) = a/(t+x), where x is the period of seconds we slept.
-	 * But we want r~ to be R
+	 * then would be (r*) = a/(t+x), where x is the period of time in seconds we slept.
+	 * But we want r* to be R
 	 * => R = a/(t+x)
 	 * => R = a/( (a/r) + x) ...from (1)
 	 * => x = (a/R) - (a/r) seconds

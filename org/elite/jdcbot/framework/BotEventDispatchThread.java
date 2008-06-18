@@ -35,6 +35,7 @@ public class BotEventDispatchThread extends Thread {
     private final int ON_UPLOAD_COMPLETE = 2;
     private final int ON_UPLOAD_START = 3;
     private final int ON_UPDATE_MY_INFO = 4;
+    private final int ON_DOWNLOAD_START = 5;
 
     private List<DispatchEntity> dispatch;
     private volatile boolean running;
@@ -57,17 +58,30 @@ public class BotEventDispatchThread extends Thread {
 		int method = de.method;
 		Object args[] = de.params;
 
-		if (method == ON_DOWNLOAD_COMPLETE)
-		    _bot.onDownloadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2), (BotException) getArg(
-			    args, 3));
-		else if (method == ON_UPLOAD_COMPLETE)
-		    _bot.onUploadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2), (BotException) getArg(args,
-			    3));
+		if (method == ON_DOWNLOAD_COMPLETE) {
+		    BotException e = (BotException) getArg(args, 3);
+		    boolean success = (Boolean) getArg(args, 2);
+		    if (_bot.getDownloadCentral() != null) {
+			e = _bot.getDownloadCentral().onDownloadFinished((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
+			if (success) {
+			    if (e != null)
+				success = false;
+			} else if (e == null)
+			    continue;
+		    }
+		    _bot.onDownloadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
+		} else if (method == ON_UPLOAD_COMPLETE)
+		    _bot.onUploadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2),
+			    (BotException) getArg(args, 3));
 		else if (method == ON_UPLOAD_START)
 		    _bot.onUploadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
 		else if (method == ON_UPDATE_MY_INFO)
 		    _bot.onUpdateMyInfo((String) getArg(args, 0));
-		else
+		else if (method == ON_DOWNLOAD_START) {
+		    if (_bot.getDownloadCentral() != null)
+			_bot.getDownloadCentral().onDownloadStart((DUEntity) getArg(args, 1), (User) getArg(args, 0));
+		    _bot.onDownloadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
+		} else
 		    try {
 			throw new NoSuchMethodException("Method number:" + method);
 		    } catch (NoSuchMethodException e) {
@@ -116,6 +130,15 @@ public class BotEventDispatchThread extends Thread {
 	DispatchEntity de = new DispatchEntity();
 	de.method = ON_UPDATE_MY_INFO;
 	de.params = new Object[] { user };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnDownloadStart(User user, DUEntity due) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = ON_DOWNLOAD_START;
+	de.params = new Object[] { user, due };
 	dispatch.add(de);
 
 	this.interrupt();

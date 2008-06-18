@@ -27,15 +27,11 @@ import java.util.Map;
 
 /**
  * Created on 26-May-08<br>
- * This is used internall by the framework to schedule the downloads.<br>
- * TODO: Create a thread that will make searches and search for alternative download sources.
- * It must resolve the conflicts arising out of it among the different DownloadHandlers.
- * TODO: On 2nd thought maybe this thread should be run in another class which will have
- * reference to all running jDCBots (since on jDCBot handels only one hub). Or should jDCBot handel all the hubs?
+ * This is used internaly by the framework to schedule the downloads.
  *
  * @author AppleGrew
  * @since 0.7
- * @version 0.1
+ * @version 0.1.1
  * 
  */
 public class DownloadManager extends DCIO {
@@ -54,22 +50,48 @@ public class DownloadManager extends DCIO {
 	}
     }
 
-    synchronized void tasksComplete(DownloadHandler dh) {
+    void tasksComplete(DownloadHandler dh) {
 	allDH.remove(dh.getUserName());
     }
 
+    synchronized int getAllDHCount() {
+	return allDH.size();
+    }
+
+    /**
+     * Called by User to start a new download.
+     * <p>
+     * This method will block till connection to remote
+     * client is made (or failed).
+     * 
+     * @param de
+     * @param u
+     * @throws BotException
+     */
     void download(DUEntity de, User u) throws BotException {
 	if (!u.isActive() && jdcbot.isPassive()) {
-	    throw new BotException(BotException.DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE);
+	    throw new BotException(BotException.Error.DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE);
+	}
+
+	if (!jdcbot.UserExist(u.username())) {
+	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 	}
 
 	DownloadHandler dh;
-	if (!allDH.containsKey((u.username()))) {
-	    dh = new DownloadHandler(u, jdcbot, this);
-	    allDH.put(u.username(), dh);
-	} else
-	    dh = allDH.get(u.username());
-	dh.download(de);
+	synchronized (allDH) {
+	    if (!allDH.containsKey((u.username()))) {
+		if (jdcbot.getFreeDownloadSlots() <= 0) {
+		    throw new BotException(BotException.Error.NO_FREE_DOWNLOAD_SLOTS);
+		}
+		dh = new DownloadHandler(u, jdcbot, this);
+		allDH.put(u.username(), dh);
+	    } else
+		dh = allDH.get(u.username());
+
+	    if (dh.isConnectionFailed())
+		throw new BotException(BotException.Error.CONNECTION_TO_REMOTE_CLIENT_FAILED);
+	    dh.download(de);
+	}
     }
 
     synchronized void cancelDownload(DUEntity de, User u) {
@@ -78,16 +100,25 @@ public class DownloadManager extends DCIO {
 	    dh.cancelDownload(de);
     }
 
+    /**
+     * This is called by jDCBot in response to $ConnectToMe
+     * when in passive mode.
+     * @param user
+     * @param socket
+     * @param N
+     * @param key
+     * @throws BotException
+     */
     void download(String user, Socket socket, int N, String key) throws BotException {
 	if (!allDH.containsKey(user))
-	    throw new BotException(BotException.A_DOWNLOAD_WAS_NOT_REQUESTED);
+	    throw new BotException(BotException.Error.A_DOWNLOAD_WAS_NOT_REQUESTED);
 
 	if (!jdcbot.UserExist(user)) {
-	    throw new BotException(BotException.USRNAME_NOT_FOUND);
+	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 	}
 
-	if (allDH.size() >= jdcbot.getMaxDownloadSlots()) {
-	    throw new BotException(BotException.NO_FREE_DOWNLOAD_SLOTS);
+	if (jdcbot.getFreeDownloadSlots() <= 0) {
+	    throw new BotException(BotException.Error.NO_FREE_DOWNLOAD_SLOTS);
 	}
 
 	try {
