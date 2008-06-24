@@ -32,6 +32,8 @@ import java.util.Map;
  * <p>
  * The framework handels this hence you need not bother
  * about this.
+ * <p>
+ * This class is thread safe.
  *
  * @author AppleGrew
  * @since 0.7
@@ -48,11 +50,13 @@ public class UploadManager extends DCIO {
 
     synchronized void close() {
 	Collection<UploadHandler> uh = allUH.values();
-	for (UploadHandler u : uh) {
-	    try {
-		u.close();
-	    } catch (IOException e) {
-		e.printStackTrace(jdcbot.log);
+	synchronized (allUH) {
+	    for (UploadHandler u : uh) {
+		try {
+		    u.close();
+		} catch (IOException e) {
+		    e.printStackTrace(jdcbot.log);
+		}
 	    }
 	}
     }
@@ -77,6 +81,9 @@ public class UploadManager extends DCIO {
      * @throws BotException
      */
     void uploadPassive(String user) throws BotException {
+	if (!jdcbot.isConnected()) {
+	    throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
+	}
 	if (!jdcbot.UserExist(user)) {
 	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 	}
@@ -93,11 +100,13 @@ public class UploadManager extends DCIO {
 	    return;
 	}
 	UploadHandler uh;
-	if (!allUH.containsKey(user)) {
-	    uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
-	    allUH.put(user, uh);
-	} else
-	    uh = allUH.get(user);
+	synchronized (allUH) {
+	    if (!allUH.containsKey(user)) {
+		uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
+		allUH.put(user, uh);
+	    } else
+		uh = allUH.get(user);
+	}
 	uh.startUploads();
     }
 
@@ -110,6 +119,9 @@ public class UploadManager extends DCIO {
      * @throws BotException
      */
     void upload(String user, Socket socket, int N, String key) throws BotException {
+	if (!jdcbot.isConnected()) {
+	    throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
+	}
 	if (!jdcbot.UserExist(user)) {
 	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 	}
@@ -131,11 +143,13 @@ public class UploadManager extends DCIO {
 	}
 
 	UploadHandler uh;
-	if (!allUH.containsKey(user)) {
-	    uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
-	    allUH.put(user, uh);
-	} else
-	    uh = allUH.get(user);
+	synchronized (allUH) {
+	    if (!allUH.containsKey(user)) {
+		uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
+		allUH.put(user, uh);
+	    } else
+		uh = allUH.get(user);
+	}
 	uh.startUploads();
     }
 

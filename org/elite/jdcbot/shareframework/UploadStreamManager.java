@@ -31,7 +31,12 @@ import org.elite.jdcbot.framework.User;
 import org.elite.jdcbot.util.InputEntityStream;
 
 /**
- * Created on 14-Jun-08
+ * Created on 14-Jun-08<br>
+ * This is meant to be used by users to control the
+ * uploads like their transfer speeds, cancelling them, etc.,
+ * and also collecting various stats related to uploads.
+ * <p>
+ * This class is thread safe.
  *
  * @author AppleGrew
  * @since 1.0
@@ -91,18 +96,53 @@ public class UploadStreamManager {
 	    customRates.remove(u);
     }
 
+    /**
+     * This is here just for your convinience. It
+     * does nothing else other than calling
+     * {@link org.elite.jdcbot.framework.User#cancelUpload()}.
+     * You can very call that instead.
+     * @param u The user's to whom upload
+     * should be cancelled.
+     */
+    public void cancelUpload(User u) {
+	u.cancelUpload();
+    }
+
+    /**
+     * 
+     * @param u
+     * @return Upload speed in bytes/second.
+     */
     public double getUploadSpeed(User u) {
-	if (!uploadStreams.containsKey(u))
-	    return 0;
-	else
-	    return uploadStreams.get(u).getTransferRate();
+	synchronized (uploadStreams) {
+	    if (!uploadStreams.containsKey(u))
+		return 0;
+	    else
+		return uploadStreams.get(u).getTransferRate();
+	}
     }
 
     public double getUploadProgress(User u) {
-	if (!uploadStreams.containsKey(u))
-	    return 0;
-	else
-	    return uploadStreams.get(u).getPercentageCompletion();
+	synchronized (uploadStreams) {
+	    if (!uploadStreams.containsKey(u))
+		return 0;
+	    else
+		return uploadStreams.get(u).getPercentageCompletion();
+	}
+    }
+
+    /**
+     * @since 1.0
+     * @return The time remaining for the
+     * completion of upload in seconds.
+     */
+    public double getTimeRemaining(User u) {
+	synchronized (uploadStreams) {
+	    if (!uploadStreams.containsKey(u))
+		return -1;
+	    else
+		return uploadStreams.get(u).getTimeRemaining();
+	}
     }
 
     private class UploadInputStream extends InputEntityStream {

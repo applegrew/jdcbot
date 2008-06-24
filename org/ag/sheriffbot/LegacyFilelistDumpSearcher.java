@@ -48,14 +48,15 @@ public class LegacyFilelistDumpSearcher {
 	    System.out.println("-s stands for size of file in MBs intended. It can only be specified for files.");
 	    System.out.println("-T instructs to show the TTH of files. By default it is not shown.");
 	    System.out.println("-p instructs to display the result row in PHP serialized form. By default it is not shown like that.");
-	    System.out.println("-H stands for hub name. It takes the name of the hub. The results retured are from hubs with such similar names only.");
+	    System.out
+		    .println("-H stands for hub name. It takes the name of the hub. The results retured are from hubs with such similar names only.");
 	}
 
 	LegacyFilelistDumpSearcher fds = new LegacyFilelistDumpSearcher();
 
 	boolean showTTH = false;
 	boolean phpSerialize = false;
-	String hubname=null;
+	String hubname = null;
 	int type = Content.ANY;
 	long size = -1;
 	int i = 0;
@@ -94,34 +95,32 @@ public class LegacyFilelistDumpSearcher {
 	}
 
 	File f = new File(dumpLoc);
-	if (f.isFile()){
-	    Vector<String> r = fds.search(dumpLoc, args[i], type, size,
-		    showTTH, phpSerialize,hubname);
-	    if(r!=null) System.out.print(LegacyFilelistDumpSearcher.Vector2String(LegacyFilelistDumpSearcher.removeDuplicates(r)));
+	if (f.isFile()) {
+	    Vector<String> r = fds.search(dumpLoc, args[i], type, size, showTTH, phpSerialize, hubname);
+	    if (r != null)
+		System.out.print(LegacyFilelistDumpSearcher.Vector2String(LegacyFilelistDumpSearcher.removeDuplicates(r)));
 	} else if (f.isDirectory()) {
 	    Vector<String> res = new Vector<String>();
 	    File dfs[] = f.listFiles();
-	    Arrays.sort(dfs,new Comparator<File>(){
+	    Arrays.sort(dfs, new Comparator<File>() {
 		public int compare(File o1, File o2) {
-		    Pattern pattern = 
-		            Pattern.compile("^.*-([0-9]{4}?)-([0-9]{2}?)-([0-9]{2}?)_([0-9]{2}?).([0-9]{2}?).([0-9]{2}?)$");
-		    Matcher matcher1 = 
-		            pattern.matcher(o1.getName());
-		    Matcher matcher2 = 
-		            pattern.matcher(o2.getName());
-		    if(matcher1.matches() && matcher2.matches()){
-			for(int i=1;i<matcher1.groupCount() && i<matcher2.groupCount();i++)
-	                        if(Integer.parseInt(matcher1.group(i))<Integer.parseInt(matcher2.group(i)))
-	                            return 1;
-	                        else if(Integer.parseInt(matcher1.group(i))>Integer.parseInt(matcher2.group(i)))
-	                            return -1;
-	            }
+		    Pattern pattern = Pattern.compile("^.*-([0-9]{4}?)-([0-9]{2}?)-([0-9]{2}?)_([0-9]{2}?).([0-9]{2}?).([0-9]{2}?)$");
+		    Matcher matcher1 = pattern.matcher(o1.getName());
+		    Matcher matcher2 = pattern.matcher(o2.getName());
+		    if (matcher1.matches() && matcher2.matches()) {
+			for (int i = 1; i < matcher1.groupCount() && i < matcher2.groupCount(); i++)
+			    if (Integer.parseInt(matcher1.group(i)) < Integer.parseInt(matcher2.group(i)))
+				return 1;
+			    else if (Integer.parseInt(matcher1.group(i)) > Integer.parseInt(matcher2.group(i)))
+				return -1;
+		    }
 		    return 0;
 		}
 	    });
 	    for (File df : dfs) {
-		Vector<String> r = fds.search(df.getAbsolutePath(), args[i], type, size, showTTH, phpSerialize,hubname);
-		if(r!=null) res.addAll(r);
+		Vector<String> r = fds.search(df.getAbsolutePath(), args[i], type, size, showTTH, phpSerialize, hubname);
+		if (r != null)
+		    res.addAll(r);
 	    }
 	    System.out.print(LegacyFilelistDumpSearcher.Vector2String(LegacyFilelistDumpSearcher.removeDuplicates(res)));
 	} else {
@@ -143,29 +142,29 @@ public class LegacyFilelistDumpSearcher {
 	    String line = null;
 	    line = bin.readLine();
 	    String dnt = line;
-	    if (line == null){
-		dnt="";
+	    if (line == null) {
+		dnt = "";
 		return null;
 	    }
-	    
+
 	    line = bin.readLine();
 	    if (line == null)
 		return null;
-	    
+
 	    if (!phpSerialize)
-		results.add("Dump's Date and Time stamp: " + dnt + "\n==========================\n"+"hubname: " + line);
+		results.add("Dump's Date and Time stamp: " + dnt + "\n==========================\n" + "hubname: " + line);
 	    else
-		results.add("$" + dnt +"\n"+"|" + line);
-	    
-	    if(hubname!=null && !line.trim().toLowerCase().contains(hubname.toLowerCase().subSequence(0, hubname.length()))){
+		results.add("$" + dnt + "\n" + "|" + line);
+
+	    if (hubname != null && !line.trim().toLowerCase().contains(hubname.toLowerCase().subSequence(0, hubname.length()))) {
 		results.add("No hits.");
 		return results;
 	    }
-	    
+
 	    boolean anyHit = false;
 
 	    while ((line = bin.readLine()) != null) {
-		
+
 		Content content = parse(line);
 		if (content.type == Content.USER) {
 		    currentUser = content.value;
@@ -203,7 +202,7 @@ public class LegacyFilelistDumpSearcher {
 				result = result + "/" + content.value;
 			} else {
 			    int index = 0;
-			    result = serializeEntity(index++, content.type==Content.FILE?"f":"d");
+			    result = serializeEntity(index++, content.type == Content.FILE ? "f" : "d");
 			    result = result + serializeEntity(index++, currentUser);
 			    if (content.type == Content.FILE && showTTH)
 				result = result + serializeEntity(index++, content.TTH);
@@ -220,10 +219,8 @@ public class LegacyFilelistDumpSearcher {
 	    if (!anyHit)
 		results.add("No hits.");
 	} catch (FileNotFoundException e) {
-	    // TODO Auto-generated catch block
 	    e.printStackTrace();
 	} catch (IOException e) {
-	    // TODO Auto-generated catch block
 	    e.printStackTrace();
 	}
 	return results;
@@ -237,9 +234,9 @@ public class LegacyFilelistDumpSearcher {
     public static Vector<String> removeDuplicates(Vector<String> res) {
 	Vector<String> vec = new Vector<String>();
 
-	for (int i = res.size()-1; i >= 0; i--) {
+	for (int i = res.size() - 1; i >= 0; i--) {
 	    boolean dup = false;
-	    for (int j = i -1; j >= 0; j--) {
+	    for (int j = i - 1; j >= 0; j--) {
 		if (res.get(i).equals(res.get(j))) {
 		    dup = true;
 		    break;
@@ -279,15 +276,15 @@ public class LegacyFilelistDumpSearcher {
 	Content content = new Content();
 
 	switch (entry.charAt(0)) {
-	case 'u':
-	    content.type = Content.USER;
-	    break;
-	case 'f':
-	    content.type = Content.FILE;
-	    break;
-	case 'd':
-	    content.type = Content.DIR;
-	    break;
+	    case 'u':
+		content.type = Content.USER;
+		break;
+	    case 'f':
+		content.type = Content.FILE;
+		break;
+	    case 'd':
+		content.type = Content.DIR;
+		break;
 	}
 
 	int pos = 1;

@@ -23,6 +23,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.elite.jdcbot.shareframework.SearchResultSet;
+import org.elite.jdcbot.shareframework.SearchSet;
+
 /**
  * Created on 31-May-08
  * @since 0.7.1
@@ -31,11 +34,25 @@ import java.util.List;
  * 
  */
 public class BotEventDispatchThread extends Thread {
-    private final int ON_DOWNLOAD_COMPLETE = 1;
-    private final int ON_UPLOAD_COMPLETE = 2;
-    private final int ON_UPLOAD_START = 3;
-    private final int ON_UPDATE_MY_INFO = 4;
-    private final int ON_DOWNLOAD_START = 5;
+    private static enum Method {
+	onDownloadComplete,
+	onUploadComplete,
+	onUploadStart,
+	onUpdateMyInfo,
+	onDownloadStart,
+	onActiveSearch,
+	onPassiveSearch,
+	onChannelMessage,
+	onPrivateMessage,
+	onQuit,
+	onJoin,
+	onPublicMessage,
+	onDisconnect,
+	onBotQuit,
+	onConnect2Client,
+	onConnect,
+	onSearchResult
+    }
 
     private List<DispatchEntity> dispatch;
     private volatile boolean running;
@@ -55,39 +72,103 @@ public class BotEventDispatchThread extends Thread {
 		DispatchEntity de = dispatch.get(0);
 		dispatch.remove(0);
 
-		int method = de.method;
+		Method method = de.method;
 		Object args[] = de.params;
 
-		if (method == ON_DOWNLOAD_COMPLETE) {
-		    BotException e = (BotException) getArg(args, 3);
-		    boolean success = (Boolean) getArg(args, 2);
-		    if (_bot.getDownloadCentral() != null) {
-			e = _bot.getDownloadCentral().onDownloadFinished((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
-			if (success) {
-			    if (e != null)
-				success = false;
-			} else if (e == null)
-			    continue;
-		    }
-		    _bot.onDownloadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
-		} else if (method == ON_UPLOAD_COMPLETE)
-		    _bot.onUploadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2),
-			    (BotException) getArg(args, 3));
-		else if (method == ON_UPLOAD_START)
-		    _bot.onUploadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
-		else if (method == ON_UPDATE_MY_INFO)
-		    _bot.onUpdateMyInfo((String) getArg(args, 0));
-		else if (method == ON_DOWNLOAD_START) {
-		    if (_bot.getDownloadCentral() != null)
-			_bot.getDownloadCentral().onDownloadStart((DUEntity) getArg(args, 1), (User) getArg(args, 0));
-		    _bot.onDownloadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
-		} else
-		    try {
-			throw new NoSuchMethodException("Method number:" + method);
-		    } catch (NoSuchMethodException e) {
-			_bot.log.println("No method with number " + method + " found.");
-			e.printStackTrace();
-		    }
+		switch (method) {
+		    case onDownloadComplete:
+			BotException e = (BotException) getArg(args, 3);
+			boolean success = (Boolean) getArg(args, 2);
+			if (_bot.getDownloadCentral() != null) {
+			    e =
+				    _bot.getDownloadCentral().onDownloadFinished((User) getArg(args, 0), (DUEntity) getArg(args, 1),
+					    success, e);
+			    if (success) {
+				if (e != null)
+				    success = false;
+			    } else if (e == null)
+				continue;
+			}
+			_bot.onDownloadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
+
+			break;
+		    case onUploadComplete:
+			_bot.onUploadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2),
+				(BotException) getArg(args, 3));
+
+			break;
+		    case onUploadStart:
+			_bot.onUploadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
+
+			break;
+		    case onUpdateMyInfo:
+			_bot.onUpdateMyInfo((String) getArg(args, 0));
+
+			break;
+		    case onDownloadStart:
+			if (_bot.getDownloadCentral() != null)
+			    _bot.getDownloadCentral().onDownloadStart((DUEntity) getArg(args, 1), (User) getArg(args, 0));
+			_bot.onDownloadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
+
+			break;
+		    case onPassiveSearch:
+			_bot.onPassiveSearch((String) getArg(args, 0), (SearchSet) getArg(args, 1));
+
+			break;
+		    case onActiveSearch:
+			_bot.onActiveSearch((String) getArg(args, 0), (Integer) getArg(args, 1), (SearchSet) getArg(args, 2));
+
+			break;
+		    case onChannelMessage:
+			_bot.onChannelMessage((String) getArg(args, 0), (String) getArg(args, 1), (String) getArg(args, 2));
+
+			break;
+		    case onPrivateMessage:
+			_bot.onPrivateMessage((String) getArg(args, 0), (String) getArg(args, 1));
+
+			break;
+		    case onQuit:
+			_bot.onQuit((String) getArg(args, 0));
+
+			break;
+		    case onJoin:
+			_bot.onJoin((String) getArg(args, 0));
+
+			break;
+		    case onPublicMessage:
+			_bot.onPublicMessage((String) getArg(args, 0), (String) getArg(args, 1));
+
+			break;
+		    case onDisconnect:
+			_bot.onDisconnect();
+
+			break;
+		    case onBotQuit:
+			_bot.onBotQuit();
+
+			break;
+		    case onConnect2Client:
+			_bot.onConnect2Client();
+
+			break;
+		    case onConnect:
+			_bot.onConnect();
+
+			break;
+		    case onSearchResult:
+			_bot.onSearchResult((String) getArg(args, 0), (String) getArg(args, 1), (Integer) getArg(args, 2),
+				(SearchResultSet) getArg(args, 3), (Integer) getArg(args, 4), (Integer) getArg(args, 5), (String) getArg(
+					args, 6));
+
+			break;
+		    default:
+			try {
+			    throw new NoSuchMethodException("Method :" + method);
+			} catch (NoSuchMethodException nsme) {
+			    _bot.log.println("No method " + method + " found.");
+			    nsme.printStackTrace();
+			}
+		}
 	    }
 	    try {
 		sleep(60000L);
@@ -99,9 +180,20 @@ public class BotEventDispatchThread extends Thread {
 	return (args[i] == null ? null : args[i]);
     }
 
+    public void stopIt() {
+	running = false;
+	this.interrupt();
+    }
+
+    private class DispatchEntity {
+	public Method method;
+	public Object params[];
+    }
+
+    //*********Proxy funtions*********/
     void callOnDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
 	DispatchEntity de = new DispatchEntity();
-	de.method = ON_DOWNLOAD_COMPLETE;
+	de.method = Method.onDownloadComplete;
 	de.params = new Object[] { user, due, success, e };
 	dispatch.add(de);
 
@@ -110,7 +202,7 @@ public class BotEventDispatchThread extends Thread {
 
     void callOnUploadComplete(User user, DUEntity due, boolean success, BotException e) {
 	DispatchEntity de = new DispatchEntity();
-	de.method = ON_UPLOAD_COMPLETE;
+	de.method = Method.onUploadComplete;
 	de.params = new Object[] { user, due, success, e };
 	dispatch.add(de);
 
@@ -119,7 +211,7 @@ public class BotEventDispatchThread extends Thread {
 
     void callOnUploadStart(User user, DUEntity due) {
 	DispatchEntity de = new DispatchEntity();
-	de.method = ON_UPLOAD_START;
+	de.method = Method.onUploadStart;
 	de.params = new Object[] { user, due };
 	dispatch.add(de);
 
@@ -128,7 +220,7 @@ public class BotEventDispatchThread extends Thread {
 
     void callOnUpdateMyInfo(String user) {
 	DispatchEntity de = new DispatchEntity();
-	de.method = ON_UPDATE_MY_INFO;
+	de.method = Method.onUpdateMyInfo;
 	de.params = new Object[] { user };
 	dispatch.add(de);
 
@@ -137,20 +229,119 @@ public class BotEventDispatchThread extends Thread {
 
     void callOnDownloadStart(User user, DUEntity due) {
 	DispatchEntity de = new DispatchEntity();
-	de.method = ON_DOWNLOAD_START;
+	de.method = Method.onDownloadStart;
 	de.params = new Object[] { user, due };
 	dispatch.add(de);
 
 	this.interrupt();
     }
 
-    public void stopIt() {
-	running = false;
+    void callOnPassiveSearch(String user, SearchSet search) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onPassiveSearch;
+	de.params = new Object[] { user, search };
+	dispatch.add(de);
+
 	this.interrupt();
     }
 
-    private class DispatchEntity {
-	public int method;
-	public Object params[];
+    void callOnActiveSearch(String ip, int port, SearchSet search) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onActiveSearch;
+	de.params = new Object[] { ip, port, search };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnChannelMessage(String user, String channel, String message) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onChannelMessage;
+	de.params = new Object[] { user, channel, message };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnPrivateMessage(String user, String message) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onPrivateMessage;
+	de.params = new Object[] { user, message };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnQuit(String user) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onQuit;
+	de.params = new Object[] { user };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnJoin(String user) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onJoin;
+	de.params = new Object[] { user };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnPublicMessage(String user, String message) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onPublicMessage;
+	de.params = new Object[] { user, message };
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnDisconnect() {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onDisconnect;
+	de.params = null;
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnBotQuit() {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onBotQuit;
+	de.params = null;
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnConnect2Client() {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onConnect2Client;
+	de.params = null;
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnConnect() {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onConnect;
+	de.params = null;
+	dispatch.add(de);
+
+	this.interrupt();
+    }
+
+    void callOnSearchResult(String senderNick, String senderIP, int senderPort, SearchResultSet result, int free_slots, int total_slots,
+	    String hubName) {
+	DispatchEntity de = new DispatchEntity();
+	de.method = Method.onSearchResult;
+	de.params = new Object[] { senderNick, senderIP, senderPort, result, free_slots, total_slots, hubName };
+	dispatch.add(de);
+
+	this.interrupt();
     }
 }

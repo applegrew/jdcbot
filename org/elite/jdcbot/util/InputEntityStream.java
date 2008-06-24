@@ -135,11 +135,19 @@ public class InputEntityStream extends InputStream {
     }
 
     /**
-     * Transfer rate in bytes per second.
-     * @return
+     * @return Transfer rate in bytes per second.
      */
     public double getTransferRate() {
 	return meter.getRate();
+    }
+    
+    /**
+     * @since 1.0
+     * @return The time remaining for the
+     * completion of transfer in seconds.
+     */
+    public double getTimeRemaining(){
+	return meter.getTimeRemaining();
     }
 
     private class Meter extends ProgressMeter {

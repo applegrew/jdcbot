@@ -28,6 +28,8 @@ import java.util.Map;
 /**
  * Created on 26-May-08<br>
  * This is used internaly by the framework to schedule the downloads.
+ * <p>
+ * This class is thread safe.
  *
  * @author AppleGrew
  * @since 0.7
@@ -43,10 +45,12 @@ public class DownloadManager extends DCIO {
 	allDH = Collections.synchronizedMap(new HashMap<String, DownloadHandler>());
     }
 
-    synchronized void close() {
-	Collection<DownloadHandler> dh = allDH.values();
-	for (DownloadHandler d : dh) {
-	    d.close();
+    void close() {
+	synchronized (allDH) {
+	    Collection<DownloadHandler> dh = allDH.values();
+	    for (DownloadHandler d : dh) {
+		d.close();
+	    }
 	}
     }
 
@@ -54,7 +58,7 @@ public class DownloadManager extends DCIO {
 	allDH.remove(dh.getUserName());
     }
 
-    synchronized int getAllDHCount() {
+    int getAllDHCount() {
 	return allDH.size();
     }
 
@@ -69,13 +73,17 @@ public class DownloadManager extends DCIO {
      * @throws BotException
      */
     void download(DUEntity de, User u) throws BotException {
-	if (!u.isActive() && jdcbot.isPassive()) {
-	    throw new BotException(BotException.Error.DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE);
-	}
+	if (!jdcbot.isConnected())
+	    throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
 
-	if (!jdcbot.UserExist(u.username())) {
+	if (u.username().equalsIgnoreCase(jdcbot._botname))
+	    throw new BotException(BotException.Error.CANNOT_DOWNLOAD_FROM_SELF);
+
+	if (!u.isActive() && jdcbot.isPassive())
+	    throw new BotException(BotException.Error.DOWNLOAD_NOT_POSSIBLE_BOTH_PASSIVE);
+
+	if (!jdcbot.UserExist(u.username()))
 	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
-	}
 
 	DownloadHandler dh;
 	synchronized (allDH) {
@@ -94,10 +102,12 @@ public class DownloadManager extends DCIO {
 	}
     }
 
-    synchronized void cancelDownload(DUEntity de, User u) {
-	DownloadHandler dh = allDH.get(u.username());
-	if (dh != null)
-	    dh.cancelDownload(de);
+    void cancelDownload(DUEntity de, User u) {
+	synchronized (allDH) {
+	    DownloadHandler dh = allDH.get(u.username());
+	    if (dh != null)
+		dh.cancelDownload(de);
+	}
     }
 
     /**
@@ -110,25 +120,32 @@ public class DownloadManager extends DCIO {
      * @throws BotException
      */
     void download(String user, Socket socket, int N, String key) throws BotException {
-	if (!allDH.containsKey(user))
-	    throw new BotException(BotException.Error.A_DOWNLOAD_WAS_NOT_REQUESTED);
+	if (!jdcbot.isConnected())
+	    throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
 
-	if (!jdcbot.UserExist(user)) {
+	if (user.equalsIgnoreCase(jdcbot._botname))
+	    throw new BotException(BotException.Error.CANNOT_DOWNLOAD_FROM_SELF);
+
+	if (!jdcbot.UserExist(user))
 	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
-	}
 
-	if (jdcbot.getFreeDownloadSlots() <= 0) {
+	if (jdcbot.getFreeDownloadSlots() <= 0)
 	    throw new BotException(BotException.Error.NO_FREE_DOWNLOAD_SLOTS);
-	}
 
-	try {
-	    String buffer = "$Supports " + jdcbot.getBotClientProtoSupports() + "|$Direction Download " + (N + 1) + "|$Key " + key + "|";
-	    SendCommand(buffer, socket);
-	    jdcbot.log.println("From bot: " + buffer);
-	} catch (Exception e) {
-	    jdcbot.log.println("Exception while sending raw command: " + e.getMessage());
-	    e.printStackTrace(jdcbot.log);
+	synchronized (allDH) {
+	    if (!allDH.containsKey(user))
+		throw new BotException(BotException.Error.A_DOWNLOAD_WAS_NOT_REQUESTED);
+
+	    try {
+		String buffer =
+			"$Supports " + jdcbot.getBotClientProtoSupports() + "|$Direction Download " + (N + 1) + "|$Key " + key + "|";
+		SendCommand(buffer, socket);
+		jdcbot.log.println("From bot: " + buffer);
+	    } catch (Exception e) {
+		jdcbot.log.println("Exception while sending raw command: " + e.getMessage());
+		e.printStackTrace(jdcbot.log);
+	    }
+	    allDH.get(user).notifyPassiveConnect(socket);
 	}
-	allDH.get(user).notifyPassiveConnect(socket);
     }
 }

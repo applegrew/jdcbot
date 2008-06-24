@@ -31,7 +31,7 @@ public class HashException extends Exception {
     private static final long serialVersionUID = -419084025412078159L;
 
     public static enum Error {
-	NONE, HASHING_IN_PROGRESS, HASHING_FAILED;
+	NONE, HASHING_IN_PROGRESS, HASHING_FAILED, HASHING_CANCELLED;
 
 	/**
 	 * Returns a better explanatory message for the Error.
@@ -47,6 +47,9 @@ public class HashException extends Exception {
 		    break;
 		case HASHING_FAILED:
 		    e = "Hashing of a file failed";
+		    break;
+		case HASHING_CANCELLED:
+		    e = "Hashing was cancelled";
 		    break;
 		default:
 		    e = "Unknow Error type";

@@ -34,5 +34,12 @@ public class GlobalObjects {
      * Initialized by jDCBot.
      */
     public static PrintStream log = System.out;
+    /**
+     * The definitive version number of this release of jDCBot.
+     */
     public static final String VERSION = "1.0";
+    /**
+     * The name of the client.
+     */
+    public static final String CLIENT_NAME = "jDCBot";
 }

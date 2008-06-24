@@ -110,7 +110,8 @@ public class UploadHandler extends InputThreadTarget {
     public void close() throws IOException {
 	inputThread.stop();
 	close = true;
-	socket.close();
+	if (socket != null & !socket.isClosed())
+	    socket.close();
 	socket = null;
     }
 
@@ -192,7 +193,7 @@ public class UploadHandler extends InputThreadTarget {
 
 		try {
 		    if (fType == DUEntity.Type.FILELIST)
-			due = sm.getFileList();
+			due = sm.getFileList(user);
 		    else
 			due = sm.getFile(user, file, fType, start, fileLen);
 		} catch (FileNotFoundException e1) {
@@ -270,7 +271,7 @@ public class UploadHandler extends InputThreadTarget {
 		    jdcbot.getDispatchThread().callOnUploadComplete(user, due, false, e);
 		}
 		cancelUpload = false;
-		
+
 	    } else {
 		jdcbot.log.println("InputStream or OutputStream was null hence no data was sent. IN==" + in + ", OUT==" + os);
 	    }

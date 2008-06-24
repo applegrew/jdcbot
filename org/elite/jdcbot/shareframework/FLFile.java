@@ -98,31 +98,6 @@ public class FLFile implements Serializable, FLInterface {
 	shared = Shared;
 	parent = p;
     }
-
-    /*
-     * Returns the path suitable to be stored in <i>path</i>.
-     * @param path
-     * @return
-     */
-    /*public static String removeFileNameFromPath(String path) {
-     int pos;
-     if (GlobalFunctions.isWindowsOS())
-     pos = path.lastIndexOf('\\');
-     else
-     pos = path.lastIndexOf('/');
-     if (pos == -1)
-     return path;
-     else
-     return path.substring(0, pos);
-     }*/
-
-    /*
-     * Returns the original path of the file, by appending <i>name</i> to <i>path</i> fields.
-     * @return The original file path, on the file system.
-     */
-    /*public String getFullPath() {
-     return path + File.separator + name;
-     }*/
     
     /**
      * @return The virtual path of this file.

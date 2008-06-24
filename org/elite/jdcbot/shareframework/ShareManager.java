@@ -21,6 +21,7 @@ package org.elite.jdcbot.shareframework;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
@@ -32,18 +33,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 
-import javax.imageio.IIOException;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.tools.bzip2.CBZip2OutputStream;
 import org.elite.jdcbot.framework.BotException;
+import org.elite.jdcbot.framework.BotInterface;
 import org.elite.jdcbot.framework.DUEntity;
 import org.elite.jdcbot.framework.GlobalObjects;
 import org.elite.jdcbot.framework.User;
@@ -64,6 +66,8 @@ import org.xml.sax.SAXException;
  * very similar to the new file (by say size or file name) then ask user
  * if this is really true or not. If true then simply update the converned
  * FLFile to point to this new path.
+ * <p>
+ * This class is thread safe.
  * 
  * @author AppleGrew
  * @since 0.7
@@ -72,24 +76,39 @@ import org.xml.sax.SAXException;
 public class ShareManager {
     private final String fileListHash = "hashDump";
     private final String fileList = "files.xml.bz2";
+    private final String downloadedFLDirName = "DowloadedFLs";
 
-    private File miscDir;
-    private File downloadFLDir;
+    protected File miscDir;
+    protected File downloadFLDir;
     /**
      * This is an abstraction of the file list. This is
      * saved into 'fileListHash' under {@link #miscDir}
      * directory using serialization.
+     * <p>
+     * <b>Note:</b> You must call {@link #setDirs(String, String) setDirs(String, String)} as soon as
+     * possible as many exceptions could be thrown and it is actually undefined what will happen if
+     * the directories are not setup. After that call {@link #init() init()}.<br>
+     * So, always follow the following steps:-
+     * <ol>
+     * <li>Call Constructor</li>
+     * <li>call {@link #setDirs(String, String) setDirs(String, String)}</li>
+     * <li>Call {@link #init() init()}</li>
+     * </ol>
      */
-    private FileListManager ownFL;
-    private Map<User, FileListManager> FLs;
+    protected FileListManager ownFL;
+    protected Map<User, FileListManager> FLs;
 
-    private HashManager hashMan;
-    private Vector<ShareManagerListener> listeners;
+    protected HashManager hashMan;
+    protected List<ShareManagerListener> listeners;
 
     private InputEntityStream hash_ies;
-    private UploadStreamManager uploadStreamManager;
+    protected UploadStreamManager uploadStreamManager;
     private String hashingFile;
     private double hashSpeed = -1;
+    private int maximumFLtoKeepInRAM = 5;
+    protected ShareWorker shareWorker = null;
+
+    protected BotInterface boi;
 
     /**
      * <b>Note:</b> You must call {@link #setDirs(String, String) setDirs(String, String)} as soon as
@@ -101,48 +120,73 @@ public class ShareManager {
      * <li>call {@link #setDirs(String, String) setDirs(String, String)}</li>
      * <li>Call {@link #init() init()}</li>
      * </ol>
+     * <b>Note:</b> Since version 1.0, the above methods are called automatically by
+     * jDCBot or MultiHubsAdapter's  setShareManager().
+     * @param boi It should be jDCBot or if MultiHubsAdapter is present then it should
+     * be that.
      */
-    public ShareManager() {
+    public ShareManager(BotInterface boi) {
 	ownFL = new FileListManager();
 	FLs = Collections.synchronizedMap(new HashMap<User, FileListManager>());
-	listeners = new Vector<ShareManagerListener>();
+	listeners = Collections.synchronizedList(new ArrayList<ShareManagerListener>());
+	hashMan = new HashManager();
 	uploadStreamManager = new UploadStreamManager();
+	ownFL.setFilelist(null);
+	this.boi = boi;
     }
 
     /**
+     * Called by jDCBot or MultiHubsAdapter on
+     * setShareManager().
+     * <p>
      * <b>Note:</b> The given directories' must exist and should be empty, as
      * already existing files in them will overwritten without warning.
-     * @param path2DirForMiscData In this directory own file list, hash data, etc. will be kept.
-     * @param path2downloadedFileLists The downloaded file lists will be kept here.
      * 
-     * @throws FileNotFoundException If the directory paths are not found or 'fileListHash'
-     * doesn't exist.
-     * @throws IIOException If the given path are not directories.
-     * @throws InstantiationException The read object from 'fileListHash' is not instance of FLDir.
-     * @throws ClassNotFoundException Class of FLDir serialized object cannot be found.
-     * @throws IOException Error occured while reading from 'fileListHash'.
+     * @param path2DirForMiscData In this directory own file list, hash data, etc. will be kept.
      */
-    public void setDirs(String path2DirForMiscData, String path2downloadedFileLists) throws IIOException, FileNotFoundException {
+    public void setDirs(String path2DirForMiscData) {
 	miscDir = new File(path2DirForMiscData);
-	downloadFLDir = new File(path2downloadedFileLists);
-	if (!miscDir.exists() || !downloadFLDir.exists())
-	    throw new FileNotFoundException();
-	if (!miscDir.isDirectory())
-	    throw new IIOException("Given path '" + path2DirForMiscData + "' is not a directory.");
-	if (!downloadFLDir.isDirectory())
-	    throw new IIOException("Given path '" + path2downloadedFileLists + "' is not a directory.");
+	downloadFLDir = new File(path2DirForMiscData + File.separator + downloadedFLDirName);
+	if (!downloadFLDir.exists())
+	    downloadFLDir.mkdir();
     }
 
-    public void init() throws ClassNotFoundException, InstantiationException, IOException {
-	hashMan = new HashManager();
+    /**
+     * Called by jDCBot or MultiHubsAdapter on
+     * setShareManager().
+     * <p>
+     * Loads own file list from the disk.
+     */
+    public void init() {
 	ownFL.setFilelist(null);
+
+	File fl = new File(miscDir.getPath() + File.separator + fileListHash);
+	boolean otherException = false;
 	try {
-	    ownFL.setFilelist(FLDir.readObjectFromStream(new BufferedInputStream(new FileInputStream(miscDir.getPath() + File.separator
-		    + fileListHash))));
+	    ownFL.setFilelist(FLDir.readObjectFromStream(new BufferedInputStream(new FileInputStream(fl))));
 	} catch (FileNotFoundException e) {
 	    ownFL.setFilelist(new FLDir("Root", true, null));
 	    ownFL.getFilelist().setCID(generateUniqueCID());
+	} catch (IOException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	    otherException = true;
+	} catch (ClassNotFoundException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	    otherException = true;
+	} catch (InstantiationException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	    otherException = true;
 	}
+
+	if (otherException) {
+	    fl.delete();
+	}
+
+	if (ownFL.getFilelist() == null) {
+	    ownFL.setFilelist(new FLDir("Root", true, null));
+	    ownFL.getFilelist().setCID(generateUniqueCID());
+	}
+
     }
 
     public void addListener(ShareManagerListener sml) {
@@ -153,9 +197,11 @@ public class ShareManager {
 	listeners.remove(sml);
     }
 
-    private void notifyMiscMsg(String msg) {
-	for (ShareManagerListener sml : listeners)
-	    sml.onMiscMsg(msg);
+    protected void notifyMiscMsg(String msg) {
+	synchronized (listeners) {
+	    for (ShareManagerListener sml : listeners)
+		sml.onMiscMsg(msg);
+	}
     }
 
     /**
@@ -164,18 +210,35 @@ public class ShareManager {
      * i.e. {@link #ownFL}.
      */
     public void purgeHash() {
-	ownFL.setFilelist(new FLDir("Root", true, null));
-	ownFL.getFilelist().setCID(generateUniqueCID());
-	File f = new File(miscDir.getPath() + File.separator + fileListHash);
-	f.delete();
+	synchronized (ownFL) {
+	    ownFL.setFilelist(new FLDir("Root", true, null));
+	    ownFL.getFilelist().setCID(generateUniqueCID());
+	    File f = new File(miscDir.getPath() + File.separator + fileListHash);
+	    f.delete();
+	}
     }
 
-    public void saveOwnFL() throws FileNotFoundException, IOException {
+    protected void saveOwnFL() throws FileNotFoundException, IOException {
 	FLDir.saveObjectToStream(new BufferedOutputStream(new FileOutputStream(miscDir.getPath() + File.separator + fileListHash)), ownFL
 		.getFilelist());
     }
 
-    public void saveOthersFLs() throws FileNotFoundException, IOException {
+    /**
+     * The number of file lists to keep in the
+     * RAM. Excess file lists are unloaded and saved
+     * into secondary storage disk. When required it
+     * will be automatically restored back into the RAM. 
+     * @param count The number of file lists to keep including
+     * bot's own. This can have a minimum value of 2. If it
+     * is not then it is ignored.
+     */
+    public void setMaximumFLtoKeepInRAM(int count) {
+	if (count < 2)
+	    return;
+	maximumFLtoKeepInRAM = count;
+    }
+
+    protected void saveOthersFLs() throws FileNotFoundException, IOException {
 	Set<User> users = FLs.keySet();
 	synchronized (FLs) {
 	    for (User u : users)
@@ -190,9 +253,10 @@ public class ShareManager {
      * @throws FileNotFoundException
      * @throws IOException
      */
-    public void saveOthersFL(User u) throws FileNotFoundException, IOException {
-	FLDir.saveObjectToStream(new BufferedOutputStream(new FileOutputStream(downloadFLDir.getPath() + File.separator
-		+ (u.getClientID().isEmpty() ? u.username() : u.getClientID()))), FLs.get(u).getFilelist());
+    protected void saveOthersFL(User u) throws FileNotFoundException, IOException {
+	File fl = new File(downloadFLDir.getPath() + File.separator + (u.getClientID().isEmpty() ? u.username() : u.getClientID()));
+	fl.deleteOnExit();
+	FLDir.saveObjectToStream(new BufferedOutputStream(new FileOutputStream(fl)), FLs.get(u).getFilelist());
     }
 
     /**
@@ -202,25 +266,37 @@ public class ShareManager {
      * @throws IOException
      * @throws ClassNotFoundException
      * @throws InstantiationException
+     * @return A new instance of FileListManager with the file list of User <i>u</i>
+     * loaded from the secondary disk.
      */
-    public void loadOthersFL(User u) throws FileNotFoundException, IOException, ClassNotFoundException, InstantiationException {
+    protected FileListManager loadOthersFL(User u) throws FileNotFoundException, IOException, ClassNotFoundException,
+	    InstantiationException {
 	FLDir root =
 		FLDir.readObjectFromStream(new BufferedInputStream(new FileInputStream(downloadFLDir.getPath() + File.separator
 			+ (u.getClientID().isEmpty() ? u.username() : u.getClientID()))));
-	FLs.put(u, new FileListManager(root));
+	return new FileListManager(root);
     }
 
-    public void freeOthersFL(User u) {
+    protected void freeOthersFL(User u) {
+	try {
+	    saveOthersFL(u);
+	} catch (FileNotFoundException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	} catch (IOException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	}
 	FLs.remove(u);
     }
 
-    public void freeExcessOthersFLs(int max) {
-	if (FLs.size() <= max)
-	    return;
-	User users[] = FLs.keySet().toArray(new User[0]);
-	int i = 0;
-	while (FLs.size() > max)
-	    freeOthersFL(users[i++]);
+    protected void freeExcessOthersFLs(int max) {
+	synchronized (FLs) {
+	    if (FLs.size() <= max)
+		return;
+	    User users[] = FLs.keySet().toArray(new User[0]);
+	    int i = 0;
+	    while (FLs.size() > max)
+		freeOthersFL(users[i++]);
+	}
     }
 
     public void close() {
@@ -239,23 +315,29 @@ public class ShareManager {
      * @throws IOException 
      * @throws FileNotFoundException 
      */
-    public void rebuildFileList() throws FileNotFoundException, IOException {
+    synchronized public void rebuildFileList() throws FileNotFoundException, IOException {
 	OutputStream bos = new BufferedOutputStream(new FileOutputStream(miscDir.getPath() + File.separator + fileList));
 	bos.write("BZ".getBytes());
 	bos = new CBZip2OutputStream(bos);
-	bos.write("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n".getBytes());
-	bos.write(("<FileListing Version=\"1\" CID=\"" + ownFL.getFilelist().getCID() + "\" Base=\"/\" Generator=\"jDCBot "
-		+ GlobalObjects.VERSION + "\">\n").getBytes());
-	writeDir2FL(bos, ownFL.getFilelist(), "");
-	bos.write("</FileListing>\n".getBytes());
+	writeFL(bos, ownFL.getFilelist());
 	bos.close();
+	boi.updateShareSize();
+    }
+
+    protected void writeFL(OutputStream out, FLDir flRoot) throws IOException {
+	out.write("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n".getBytes());
+	out.write(("<FileListing Version=\"1\" CID=\"" + flRoot.getCID() + "\" Base=\"/\" Generator=\"" + GlobalObjects.CLIENT_NAME + " "
+		+ GlobalObjects.VERSION + "\">\n").getBytes());
+	writeDir2FL(out, flRoot, "");
+	out.write("</FileListing>\n".getBytes());
     }
 
     private void writeDir2FL(OutputStream out, FLDir dir, String indentTabs) throws UnsupportedEncodingException, IOException {
 	if (!dir.isShared())
 	    return;
 
-	if (!dir.isRoot() || (dir.isRoot() && dir.hasFile()))
+	//if (!dir.isRoot() || (dir.isRoot() && dir.hasFile()))
+	if (!dir.isRoot())
 	    out.write((indentTabs + "<Directory Name=\"" + dir.getName() + "\">\n").getBytes("utf-8"));
 
 	FLDir dirs[] = dir.getSubDirs().toArray(new FLDir[0]);
@@ -265,33 +347,94 @@ public class ShareManager {
 
 	FLFile files[] = dir.getFiles().toArray(new FLFile[0]);
 	for (FLFile f : files) {
-	    if (f.shared && f.hash != null) {
+	    if (f.shared && f.hash != null && !f.hash.isEmpty()) {
 		out.write((indentTabs + "\t" + "<File Name=\"" + f.name + "\" Size=\"" + f.size + "\" TTH=\"" + f.hash + "\"/>\n")
 			.getBytes("utf-8"));
 	    } else
 		notifyMiscMsg(f + " not written to file list, since it is not shared or its hash is not set.");
 	}
 
-	if (!dir.isRoot() || (dir.isRoot() && dir.hasFile()))
+	//if (!dir.isRoot() || (dir.isRoot() && dir.hasFile()))
+	if (!dir.isRoot())
 	    out.write((indentTabs + "</Directory>\n").getBytes());
     }
 
-    public Vector<SearchResultSet> searchOwnFileList(SearchSet search, final int maxResult) {
-	return ownFL.search(search, maxResult, false);
+    /**
+     * 
+     * @param search
+     * @param maxResult
+     * @param user The user who has searched for this. If it was an
+     * active search then it is any one arbitrary user from the source
+     * IP. She may not have actually made this search.
+     * @param It is the probability that the above user did actually
+     * search this. (1.0 being certain)
+     * @return null is never returned.
+     */
+    public List<SearchResultSet> searchOwnFileList(SearchSet search, final int maxResult, User user, double certainity) {
+	synchronized (ownFL) {
+	    return getOwnFL(user, certainity).search(search, maxResult, false);
+	}
     }
 
+    /**
+     * This is similar to {@link #searchOwnFileList(SearchSet, int, User, double)}
+     * except for the fact that it guarantees that the search is made in bot's
+     * own file list, no  matter what {@link #getOwnFL(User,double)} returns. Furthermore,
+     * it doesn't require you to specify some weird arguments like the user who
+     * is searching and the certainity factor. 
+     * @param search
+     * @param maxResult
+     * @return
+     */
+    public List<SearchResultSet> searchOwnFileList(SearchSet search, final int maxResult) {
+	synchronized (ownFL) {
+	    return ownFL.search(search, maxResult, false);
+	}
+    }
+
+    /**
+     * @return Percentage completion of hashing task.
+     */
     public int getPercentageHashCompletion() {
 	if (hash_ies == null)
 	    return 100;
 	return (int) Math.round(hash_ies.getPercentageCompletion());
     }
 
+    /**
+     * @return Speed of hashing in
+     * bytes/second.
+     */
     public double getHashingSpeed() {
 	if (hash_ies == null)
 	    return 0;
 	return hash_ies.getTransferRate();
     }
 
+    /**
+     * Will cancel hashing while adding new
+     * share or updating existing share.
+     */
+    public void cancelHashing() {
+	if (shareWorker != null)
+	    shareWorker.cancelJob();
+    }
+
+    /**
+     * @return Time left to complete hashing
+     * in seconds. -1 is returned when this value
+     * cannot be calculated. 
+     */
+    public double getTimeLeft2CompleteHashing() {
+	if (hash_ies == null)
+	    return -1;
+	return hash_ies.getTimeRemaining();
+    }
+
+    /**
+     * @return The path of the currently hashing
+     * file.
+     */
     public String getCurrentlyHashedFileName() {
 	if (hashingFile == null)
 	    return "";
@@ -334,22 +477,24 @@ public class ShareManager {
      */
     public DUEntity getFile(User u, String file, DUEntity.Type fileType, long start, long Len) throws FileNotFoundException {
 	if (fileType == DUEntity.Type.FILELIST)
-	    return getFileList();
+	    return getFileList(u);
 
 	if (fileType == DUEntity.Type.TTHL)
 	    throw new FileNotFoundException("Not supported");
+
+	FLDir root = getOwnFL(u, 1.0);
 
 	FLFile f;
 	String tfile = file;
 	if (tfile.startsWith("TTH/")) {//file is hash
 	    tfile = tfile.substring(4);
-	    f = ownFL.getFilelist().getFileInTreeByHash(tfile, true);
+	    f = root.getFileInTreeByHash(tfile, true);
 
 	} else {//file is not hash
 	    tfile = tfile.replace('\\', '/');
-	    if (!tfile.startsWith("/" + ownFL.getFilelist().getName()) || !tfile.startsWith(ownFL.getFilelist().getName()))
-		tfile = ownFL.getFilelist().getName() + (tfile.startsWith("/") ? "" : "/") + tfile;
-	    FLInterface fd = ownFL.getFilelist().getChildInTree(FLDir.getDirNamesFromPath(tfile), false);
+	    if (!tfile.startsWith("/" + root.getName()) || !tfile.startsWith(root.getName()))
+		tfile = root.getName() + (tfile.startsWith("/") ? "" : "/") + tfile;
+	    FLInterface fd = root.getChildInTree(FLDir.getDirNamesFromPath(tfile), false);
 	    if (fd == null || fd instanceof FLDir)
 		throw new FileNotFoundException("File not found");
 	    f = (FLFile) fd;
@@ -361,18 +506,34 @@ public class ShareManager {
 	if (!canUpload(u, f.path))
 	    throw new FileNotFoundException("File not found");
 
-	File ff = new File(f.path);
-	if (!ff.canRead()) {
-	    throw new FileNotFoundException("File is not readable");
-	}
-	if (!ff.exists()) {
-	    f.shared = false;
-	    throw new FileNotFoundException("File not found");
-	}
+	DUEntity due;
+	if (!f.path.startsWith("cache://")) {
 
-	DUEntity due =
-		new DUEntity(DUEntity.Type.FILE, file, start, Len, uploadStreamManager.getInputEntityStream(u, new BufferedInputStream(
-			new FileInputStream(ff))));
+	    File ff = new File(f.path);
+	    if (!ff.canRead()) {
+		throw new FileNotFoundException("File is not readable");
+	    }
+	    if (!ff.exists()) {
+		f.shared = false;
+		throw new FileNotFoundException("File not found");
+	    }
+
+	    due =
+		    new DUEntity(DUEntity.Type.FILE, file, start, Len, uploadStreamManager.getInputEntityStream(u, new BufferedInputStream(
+			    new FileInputStream(ff))));
+
+	} else {
+	    //This allows you to send 'virtual files', i.e. files which are stored in RAM as byte stream.
+	    //These files' FLFile.path should start with cache://.
+
+	    byte b[] = getCacheFileData(f.path.substring(8));
+	    if (b == null)
+		throw new FileNotFoundException("File not found");
+	    due =
+		    new DUEntity(DUEntity.Type.FILE, file, start, Len, uploadStreamManager.getInputEntityStream(u, new BufferedInputStream(
+			    new ByteArrayInputStream(b))));
+	    f.size = b.length;
+	}
 
 	if (start >= f.size)
 	    throw new FileNotFoundException("Start offset exceeds or is equal to the file length");
@@ -392,13 +553,26 @@ public class ShareManager {
 	return due;
     }
 
-    public DUEntity getFileList() throws FileNotFoundException {
+    public DUEntity getFileList(User u) throws FileNotFoundException {
 
-	File fl = new File(miscDir.getPath() + File.separator + "files.xml.bz2");
-	if (!fl.exists() && fl.canRead())
-	    throw new FileNotFoundException("User file list not found or is not readable.");
+	byte b[] = getVirtualFLData(u);
+	InputStream ifl;
+	long len;
+	if (b == null) {
 
-	DUEntity due = new DUEntity(DUEntity.Type.FILELIST, "", 0, fl.length(), new BufferedInputStream(new FileInputStream(fl)));
+	    File fl = new File(miscDir.getPath() + File.separator + "files.xml.bz2");
+	    if (!fl.exists() && fl.canRead())
+		throw new FileNotFoundException("User file list not found or is not readable.");
+
+	    ifl = new FileInputStream(fl);
+	    len = fl.length();
+
+	} else {
+	    len = b.length;
+	    ifl = new ByteArrayInputStream(b);
+	}
+
+	DUEntity due = new DUEntity(DUEntity.Type.FILELIST, "", 0, len, new BufferedInputStream(ifl));
 	due.in();
 
 	return due;
@@ -415,7 +589,25 @@ public class ShareManager {
      * has not been downloaded then null is returned.
      */
     public FileListManager getOthersFileListManager(User u) {
-	return FLs.get(u);
+	FileListManager flm = FLs.get(u);
+	if (flm == null) {
+	    try {
+		flm = loadOthersFL(u);
+		if (FLs.size() + 1 > maximumFLtoKeepInRAM) {
+		    freeExcessOthersFLs(FLs.size() + 1 - maximumFLtoKeepInRAM + 1);
+		}
+		FLs.put(u, flm);
+	    } catch (FileNotFoundException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    } catch (IOException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    } catch (ClassNotFoundException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    } catch (InstantiationException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    }
+	}
+	return flm;
     }
 
     /**
@@ -426,9 +618,11 @@ public class ShareManager {
      * @return Your total share size.
      */
     public long getOwnShareSize(boolean all) {
-	if (ownFL.getFilelist() == null)
-	    return 0;
-	return ownFL.getFilelist().getSize(all);
+	synchronized (ownFL) {
+	    if (ownFL.getFilelist() == null)
+		return 0;
+	    return ownFL.getFilelist().getSize(all);
+	}
     }
 
     /**
@@ -439,10 +633,26 @@ public class ShareManager {
      * from <i>includes</i>.
      * @param filter This allows you to filter out files like ones which are
      * hidden, etc. 
+     * @param inside This is the virtual path in the file list where you want the
+     * shares to get added. If this is null then root of the file list is assumed. 
      * @throws HashException When exception occurs while starting hashing.
+     * @throws ShareException When hashing is in progress since the last time
+     * this method or {@link #updateShare(Vector)} was called or <i>inside</i>
+     * path is not null and it is not found.
      */
-    public void addShare(Vector<File> includes, Vector<File> excludes, FilenameFilter filter) throws HashException {
-	ShareAdder sa = new ShareAdder(includes, excludes, filter);
+    public void addShare(List<File> includes, List<File> excludes, FilenameFilter filter, String inside) throws HashException,
+	    ShareException {
+	if (shareWorker != null)
+	    throw new ShareException(ShareException.Error.HASHING_JOB_IN_PROGRESS);
+	FLDir root = null;
+	if (inside != null) {
+	    FLInterface fi = ownFL.getFilelist().getChildInTree(FLDir.getDirNamesFromPath(sanitizeVirtualPath(inside)), true);
+	    if (fi == null || fi instanceof FLFile)
+		throw new ShareException(ShareException.Error.FILE_OR_DIR_NOT_FOUND);
+	    root = (FLDir) fi;
+	}
+	ShareAdder sa = new ShareAdder(includes, excludes, filter, root);
+	shareWorker = sa;
 	sa.addShare();
     }
 
@@ -453,17 +663,27 @@ public class ShareManager {
      * {@link #pruneUnsharedShares()} to actually delete them.
      * @param fORd The list of virtual paths to files and/or
      * directories to be removed from share.
+     * @throws ShareException When any of the given paths are not found.
+     * The process is not interrupted, rather at the completion of this task
+     * the last path that was not found is returned in the message. All the
+     * paths that were not found are reported using onMiscMsg() event.
      */
-    public void removeShare(Vector<String> fORd) {
+    public void removeShare(List<String> fORd) throws ShareException {
+	String pathNotFound = null;
+
 	FLDir fl = ownFL.getFilelist();
 	for (String p : fORd) {
-	    if (!p.startsWith("/" + fl.getName()))
-		p = "/" + fl.getName() + "/" + p;
+	    p = sanitizeVirtualPath(p);
 	    FLInterface fd = fl.getChildInTree(FLDir.getDirNamesFromPath(p), false);
-	    if (fd instanceof FLDir)
-		((FLDir) fd).setShared(false);
-	    else
-		((FLFile) fd).shared = false;
+	    if (fd != null) {
+		if (fd instanceof FLDir)
+		    ((FLDir) fd).setShared(false);
+		else
+		    ((FLFile) fd).shared = false;
+	    } else {
+		pathNotFound = p;
+		notifyMiscMsg("Path: '" + p + "' not found and hence cannot be removed.");
+	    }
 	}
 	try {
 	    rebuildFileList();
@@ -472,6 +692,32 @@ public class ShareManager {
 	} catch (IOException e) {
 	    e.printStackTrace(GlobalObjects.log);
 	}
+	if (pathNotFound != null) {
+	    throw new ShareException(pathNotFound, ShareException.Error.FILE_OR_DIR_NOT_FOUND);
+	}
+    }
+
+    /**
+     * Has mercy over petty users who don't care
+     * give a proper virtual path.
+     * <p>
+     * Converts \ to /, if the path doesn't start
+     * with / then prefixes one, if the path doesn't
+     * start with /Root then prefixes one. Note
+     * that use this to sanitize ONLY absolute
+     * paths, not relative paths.
+     * <p>
+     * This method is re-entrant.
+     * 
+     * @param p The absolute virtual path to sanitize.
+     * @return Sanitized virtual path.
+     */
+    protected String sanitizeVirtualPath(String p) {
+	p = p.replace('\\', '/');
+	FLDir fl = ownFL.getFilelist();
+	if (!p.startsWith("/" + fl.getName()))
+	    p = "/" + fl.getName() + (p.startsWith("/") ? "" : "/") + p;
+	return p;
     }
 
     /**
@@ -481,10 +727,21 @@ public class ShareManager {
      * then all files in its tree will be rehashed. The
      * path may or maynot start wiht /Root.
      * @throws HashException When exception occurs while starting hashing.
+     * @throws ShareException When hashing is in progress since the last time
+     * this method or {@link #addShare(Vector, Vector, FilenameFilter)} was called.
      */
-    public void updateShare(Vector<String> fORd) throws HashException {
+    public void updateShare(List<String> fORd) throws HashException, ShareException {
+	if (shareWorker != null)
+	    throw new ShareException(ShareException.Error.HASHING_JOB_IN_PROGRESS);
+
+	shareWorker = prvUpdateShare(fORd);
+    }
+
+    private ShareUpdater prvUpdateShare(List<String> fORd) throws HashException {
 	ShareUpdater su = new ShareUpdater(fORd);
+	shareWorker = su;
 	su.updateShare();
+	return su;
     }
 
     /**
@@ -492,41 +749,59 @@ public class ShareManager {
      * file list that are not shared.
      */
     public void pruneUnsharedShares() {
-	ownFL.getFilelist().pruneUnsharedSharesInTree();
+	synchronized (ownFL) {
+	    ownFL.getFilelist().pruneUnsharedSharesInTree();
+	}
     }
 
     /**
      * @return All FLFiles in own file list whose path
-     * points to not existant files.
+     * points to not existant files. It will never be
+     * null.
      */
-    public Collection<FLFile> getAllNotExistantFiles() {
-	//TODO
-	return null;
+    public Collection<FLFile> getAllNonExistantFiles() {
+	synchronized (ownFL) {
+	    return ownFL.getFilelist().getAllNonExistantFiles();
+	}
     }
 
+    /**
+     * Downloads other user's file list.
+     * @param u
+     * @throws BotException
+     */
     public void downloadOthersFileList(User u) throws BotException {
-	u.downloadFileList(new FilelistDownloader(u), DUEntity.NO_SETTING);
+	if (u != null)
+	    u.downloadFileList(new FilelistDownloader(u), DUEntity.NO_SETTING);
     }
 
     /**
      * Generates a unique ID for the client.
      */
-    private String generateUniqueCID() {
+    protected String generateUniqueCID() {
 	return hashMan.getHash(Long.toString(System.currentTimeMillis()) + "jDCBot" + Double.toString(Math.random()));
     }
 
+    //************Private Classes*******************/
+
     private abstract class ShareWorker implements HashUser {
 	protected void notifyHashingOfFileSkipped(String f, String reason) {
-	    for (ShareManagerListener sml : listeners)
-		sml.hashingOfFileSkipped(f, reason);
+	    synchronized (listeners) {
+		for (ShareManagerListener sml : listeners)
+		    sml.hashingOfFileSkipped(f, reason);
+	    }
 	}
+
+	public abstract void cancelJob();
 
 	protected void notifyHashingOfFileComplete(String f, boolean success, HashException e) {
-	    for (ShareManagerListener s : listeners)
-		s.hashingOfFileComplete(f, success, e);
+	    synchronized (listeners) {
+		for (ShareManagerListener s : listeners)
+		    s.hashingOfFileComplete(f, success, e);
+	    }
 	}
 
-	protected boolean isSubDirOf(File who, File ofWhom) {
+	protected boolean isSubOf(File who, File ofWhom) {
 	    if (GlobalFunctions.isWindowsOS())
 		return who.getAbsolutePath().toLowerCase().startsWith(ofWhom.getAbsolutePath().toLowerCase());
 	    else
@@ -548,13 +823,17 @@ public class ShareManager {
 	}
 
 	protected void notifyHashingOfFileStarting(String f) {
-	    for (ShareManagerListener s : listeners)
-		s.hashingOfFileStarting(f);
+	    synchronized (listeners) {
+		for (ShareManagerListener s : listeners)
+		    s.hashingOfFileStarting(f);
+	    }
 	}
 
 	protected void notifyHashingJobFinished() {
-	    for (ShareManagerListener s : listeners)
-		s.hashingJobFinished();
+	    synchronized (listeners) {
+		for (ShareManagerListener s : listeners)
+		    s.hashingJobFinished();
+	    }
 	}
 
 	protected long totalSize(Collection<File> all) {
@@ -601,48 +880,59 @@ public class ShareManager {
     }
 
     private class ShareAdder extends ShareWorker {
-	private Vector<File> includes;
-	private Vector<File> excludes;
+	private List<File> includes;
+	private List<File> excludes;
 	private FilenameFilter filter;
-	private Vector<FLFile> flfiles;
-	private Vector<String> updateShare;
+	private List<FLFile> flfiles;
+	private List<String> updateShare;
+	private ShareUpdater shareUpdater = null;
+	private FLDir root;
 
-	private Vector<FLDir> inc_fldir;
-	private Vector<File> inc_dir;
+	private List<FLDir> inc_fldir;
+	private List<File> inc_dir;
 
-	public ShareAdder(Vector<File> includes, Vector<File> excludes, FilenameFilter filter) {
+	private boolean closing = false;
+
+	public ShareAdder(List<File> includes, List<File> excludes, FilenameFilter filter, FLDir inside) {
 	    hash_ies = null;
 	    this.includes = includes;
 	    this.excludes = excludes;
 	    this.filter = filter;
-	    if (ownFL.getFilelist() == null) {
-		ownFL.setFilelist(new FLDir("Root", true, null));
-		ownFL.getFilelist().setCID(generateUniqueCID());
+	    synchronized (ownFL) {
+		if (ownFL.getFilelist() == null) {
+		    ownFL.setFilelist(new FLDir("Root", true, null));
+		    ownFL.getFilelist().setCID(generateUniqueCID());
+		}
+		root = inside;
+		if (root == null)
+		    root = ownFL.getFilelist();
+		flfiles = ownFL.getFilelist().getAllFilesUnderTheTree();
 	    }
-	    flfiles = ownFL.getFilelist().getAllFilesUnderTheTree();
 
-	    inc_dir = new Vector<File>();
-	    inc_fldir = new Vector<FLDir>();
-	    for (File d : includes) {
-		if (d.isDirectory()) {
-		    try {
-			d = d.getCanonicalFile();
-			inc_dir.add(d);
-			FLDir fld = new FLDir(d.getName(), false, ownFL.getFilelist());
-			inc_fldir.add(fld);
-			ownFL.getFilelist().addSubDir(fld);
-		    } catch (IOException e) {
-			e.printStackTrace(GlobalObjects.log);
+	    inc_dir = Collections.synchronizedList(new ArrayList<File>());
+	    inc_fldir = Collections.synchronizedList(new ArrayList<FLDir>());
+	    synchronized (root) {
+		for (File d : includes) {
+		    if (d.isDirectory()) {
+			try {
+			    d = d.getCanonicalFile();
+			    inc_dir.add(d);
+			    FLDir fld = new FLDir(d.getName(), false, root);
+			    inc_fldir.add(fld);
+			    root.addSubDir(fld);
+			} catch (IOException e) {
+			    e.printStackTrace(GlobalObjects.log);
+			}
 		    }
 		}
 	    }
-	    for (int i = 0; i < inc_dir.size(); i++) {
+	    for (int i = 0; i < inc_dir.size(); i++) { //removing FLDirs which are sub-dir of an existing FLDir.
 		for (int j = 0; j < inc_dir.size();) {
 		    if (i == j) {
 			j++;
 			continue;
 		    }
-		    if (isSubDirOf(inc_dir.get(i), inc_dir.get(j))) {
+		    if (isSubOf(inc_dir.get(i), inc_dir.get(j))) {
 			inc_dir.remove(i);
 			inc_fldir.remove(i);
 			if (i > j)
@@ -655,21 +945,37 @@ public class ShareManager {
 		}
 	    }
 
-	    updateShare = new Vector<String>();
+	    updateShare = Collections.synchronizedList(new ArrayList<String>());
 	}
 
 	public void addShare() throws HashException {
 	    hashMan.hash(includes, this);
 	}
 
+	public void cancelJob() {
+	    closing = true;
+	    if (shareUpdater == null) {
+		hashMan.cancelHashing();
+		//finish();
+	    } else {
+		shareUpdater.cancelJob();
+	    }
+	}
+
 	public boolean canHash(File f) {
+	    File cf = f;
 	    try {
-		f = f.getCanonicalFile();
+		cf = f.getCanonicalFile();
 	    } catch (IOException e) {
 		e.printStackTrace(GlobalObjects.log);
 	    }
 
-	    if (filter.accept(f.getParentFile(), f.getName())) {
+	    if (closing) {
+		notifyHashingOfFileSkipped(cf.getAbsolutePath(), "Hashing cancelled.");
+		return false;
+	    }
+
+	    if (filter.accept(cf.getParentFile(), cf.getName())) {
 		boolean accept = true;
 		String reason = "";
 		int in = excludes.indexOf(f);
@@ -678,31 +984,36 @@ public class ShareManager {
 		    reason = "In exclude list.";
 		    excludes.remove(in); //Done so that for next iteration we need to search lesser elements.
 		}
-		FLFile flf = new FLFile(f.getName(), f.length(), f.getAbsolutePath(), f.lastModified(), true, null);
+		FLFile flf = new FLFile(cf.getName(), cf.length(), cf.getAbsolutePath(), cf.lastModified(), true, null);
 		in = flfiles.indexOf(flf);
 		if (in != -1) {
 		    FLFile tflf = flfiles.get(in);
 		    if (tflf.lastModified != flf.lastModified || tflf.size != flf.size) {
-			//ownFL.getFilelist().deleteFileInTree(tflf);
 			if (accept)
 			    updateShare.add(tflf.getVirtualPath());
-			//} else {
-			tflf.shared = accept;
-			if (accept)
-			    reason = "Already shared.";
-			flfiles.remove(in); //Done so that for next iteration we need to search lesser elements.
-			accept = false;
 		    }
+		    tflf.shared = accept;
+		    if (accept)
+			reason = "Already shared.";
+		    //Done so that for next iteration we need to search lesser elements.
+		    //A possible source of problem could be when this file is in includes more
+		    //than once, then the second time it will get added becuase of the following
+		    //line. Anyway it has been assumed that it will not happen.
+		    flfiles.remove(in);
+		    accept = false;
 		}
 		if (accept)
 		    return true;
 		else
-		    notifyHashingOfFileSkipped(f.getAbsolutePath(), reason);
+		    notifyHashingOfFileSkipped(cf.getAbsolutePath(), reason);
 	    }
 	    return false;
 	}
 
 	public InputStream getInputStream(File f) {
+	    if (closing)
+		return null;
+
 	    try {
 		if (hash_ies == null) {
 		    hash_ies = new InputEntityStream(new BufferedInputStream(new FileInputStream(f)));
@@ -725,16 +1036,23 @@ public class ShareManager {
 	    }
 
 	    if (success) {
+		FLFile flf = new FLFile(f.getName(), f.length(), f.getAbsolutePath(), f.lastModified(), true, null);
+		flf.hash = hash;
+
+		boolean added = false;
 		for (int i = 0; i < inc_dir.size(); i++) {
 		    File d = inc_dir.get(i);
-		    if (isSubDirOf(f, d)) {
-			FLFile flf = new FLFile(f.getName(), f.length(), f.getAbsolutePath(), f.lastModified(), true, null);
-			flf.hash = hash;
+		    if (isSubOf(f, d)) {
 			FLDir parent = createParentFLDirs(f, d, inc_fldir.get(i));
 			parent.addFile(flf);
 			flf.parent = parent;
+			added = true;
 			break;
 		    }
+		}
+		if (!added) {//This file was not a sub of any dirs above, so add it in the Root.
+		    root.addFile(flf);
+		    flf.parent = root;
 		}
 	    }
 	    notifyHashingOfFileComplete(f.getAbsolutePath(), success, e);
@@ -754,10 +1072,15 @@ public class ShareManager {
 	    hash_ies = null;
 	    hashingFile = null;
 
+	    if (closing) {
+		finish();
+		return;
+	    }
+
 	    boolean updatedShare = false;
 	    if (updateShare.size() != 0) {
 		try {
-		    updateShare(updateShare);
+		    shareUpdater = prvUpdateShare(updateShare);
 		    updatedShare = true;
 		} catch (HashException e) {
 		    e.printStackTrace(GlobalObjects.log);
@@ -765,39 +1088,50 @@ public class ShareManager {
 	    }
 
 	    if (!updatedShare) {
-		try {
-		    saveOwnFL();
-		    rebuildFileList();
-		} catch (FileNotFoundException e) {
-		    e.printStackTrace(GlobalObjects.log);
-		} catch (IOException e) {
-		    e.printStackTrace(GlobalObjects.log);
-		}
-
-		notifyHashingJobFinished();
+		finish();
 	    }
 
+	}
+
+	private void finish() {
+	    try {
+		saveOwnFL();
+		rebuildFileList();
+	    } catch (FileNotFoundException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    } catch (IOException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    }
+
+	    hash_ies = null;
+	    hashingFile = null;
+	    shareWorker = null;
+
+	    notifyHashingJobFinished();
 	}
 
     }
 
     private class ShareUpdater extends ShareWorker {
 	private Map<File, FLFile> _updateShares;
+	private boolean closing = false;
 
-	public ShareUpdater(Vector<String> updateShares) {
+	public ShareUpdater(List<String> updateShares) {
 	    _updateShares = new HashMap<File, FLFile>();
-	    FLDir fl = ownFL.getFilelist();
-	    for (String p : updateShares) {
-		if (!p.startsWith("/" + fl.getName()))
-		    p = "/" + fl.getName() + "/" + p;
-		FLInterface fd = fl.getChildInTree(FLDir.getDirNamesFromPath(p), false);
-		if (fd instanceof FLDir) {
-		    FLDir d = ((FLDir) fd);
-		    for (FLFile f : d.getAllFilesUnderTheTree())
+	    synchronized (ownFL) {
+		FLDir fl = ownFL.getFilelist();
+		for (String p : updateShares) {
+		    if (!p.startsWith("/" + fl.getName()))
+			p = "/" + fl.getName() + "/" + p;
+		    FLInterface fd = fl.getChildInTree(FLDir.getDirNamesFromPath(p), false);
+		    if (fd instanceof FLDir) {
+			FLDir d = ((FLDir) fd);
+			for (FLFile f : d.getAllFilesUnderTheTree())
+			    _updateShares.put(new File(f.path), f);
+		    } else {
+			FLFile f = ((FLFile) fd);
 			_updateShares.put(new File(f.path), f);
-		} else {
-		    FLFile f = ((FLFile) fd);
-		    _updateShares.put(new File(f.path), f);
+		    }
 		}
 	    }
 	}
@@ -806,11 +1140,24 @@ public class ShareManager {
 	    hashMan.hash(_updateShares.keySet(), this);
 	}
 
+	public void cancelJob() {
+	    closing = true;
+	    hashMan.cancelHashing();
+	    //finish();
+	}
+
 	public boolean canHash(File f) {
+	    if (closing) {
+		notifyHashingOfFileSkipped(f.getAbsolutePath(), "Hashing cancelled.");
+		return false;
+	    }
 	    return true;
 	}
 
 	public InputStream getInputStream(File f) {
+	    if (closing)
+		return null;
+
 	    try {
 		if (hash_ies == null) {
 		    hash_ies = new InputEntityStream(new BufferedInputStream(new FileInputStream(f)));
@@ -838,8 +1185,10 @@ public class ShareManager {
 	}
 
 	public void onHashingJobFinished() {
-	    hash_ies = null;
-	    hashingFile = null;
+	    finish();
+	}
+
+	private void finish() {
 	    try {
 		saveOwnFL();
 		rebuildFileList();
@@ -849,8 +1198,11 @@ public class ShareManager {
 		e.printStackTrace(GlobalObjects.log);
 	    }
 
-	    notifyHashingJobFinished();
+	    hash_ies = null;
+	    hashingFile = null;
+	    shareWorker = null;
 
+	    notifyHashingJobFinished();
 	}
 
     }
@@ -866,8 +1218,11 @@ public class ShareManager {
 	    FilelistConverter fc = new FilelistConverter(this.toByteArray());
 	    try {
 		FLDir root = fc.parse();
-		FLs.put(_u, new FileListManager(root));
 		_u.setClientID(root.getCID());
+		if (FLs.size() + 1 >= maximumFLtoKeepInRAM) {
+		    freeExcessOthersFLs(FLs.size() + 1 - maximumFLtoKeepInRAM + 1);
+		}
+		FLs.put(_u, new FileListManager(root));
 		notifyListeners(true, null);
 	    } catch (ParserConfigurationException e) {
 		e.printStackTrace(GlobalObjects.log);
@@ -882,10 +1237,14 @@ public class ShareManager {
 	}
 
 	private void notifyListeners(boolean success, Exception e) {
-	    for (ShareManagerListener sml : listeners)
-		sml.onFilelistDownloadFinished(_u, success, e);
+	    synchronized (listeners) {
+		for (ShareManagerListener sml : listeners)
+		    sml.onFilelistDownloadFinished(_u, success, e);
+	    }
 	}
     }
+
+    //***********Methods meant to be overridden*************/
 
     /**
      * This is a method that allows you implement
@@ -900,7 +1259,9 @@ public class ShareManager {
      * You will need to extend this class and overload this
      * method to implement this feature.
      * @param u The User who is trying to download
-     * from you.
+     * from you. When this method is called you be certain that
+     * remote user's IP is available irrespective of the fact that
+     * you are an Operator in the hub or not.
      * @param path The actual path to the file on the file system that the
      * user is requesting.
      * @return Return true to allow the upload. Passing false will
@@ -910,83 +1271,79 @@ public class ShareManager {
 	return true;
     }
 
-    public static void main(String a[]) {
-	//This method if for testing only.
-
-	System.out.println(File.pathSeparator);
-	System.out.println(File.separator);
-
-	Vector<File> includes = new Vector<File>();
-	Vector<File> excludes = new Vector<File>();
-	includes.add(new File("/home/appl"));
-
-	ShareManager sm = null;
-	sm = new ShareManager();
-	try {
-	    sm.setDirs("settings", "settings/downloadedFileLists");
-	} catch (FileNotFoundException e2) {
-	    e2.printStackTrace();
-	    return;
-	} catch (IIOException e) {
-	    e.printStackTrace();
-	    return;
-	}
-
-	try {
-	    System.out.println("loading share from hashDump if possible...");
-	    sm.init();
-	    System.out.println("Done...");
-	} catch (IOException e2) {
-	    e2.printStackTrace();
-	    sm.purgeHash();
-	} catch (ClassNotFoundException e) {
-	    e.printStackTrace();
-	    sm.purgeHash();
-	} catch (InstantiationException e) {
-	    e.printStackTrace();
-	    sm.purgeHash();
-	}
-
-	sm.setMaxHashingSpeed(4 * 1024 * 1024);
-	try {
-	    if (sm.ownFL.getFilelist().getAllFilesUnderTheTree().size() == 0) {
-		System.out.println("Adding share...");
-		sm.addShare(includes, excludes, new FilenameFilter() {
-		    public boolean accept(File arg0, String arg1) {
-			if (arg1.startsWith(".") || new File(arg0 + File.separator + arg1).isHidden())
-			    return false;
-			else
-			    return true;
-		    }
-		});
-	    } else
-		System.out.println("Share successfully loaded from the hashDump.");
-	} catch (HashException e1) {
-	    e1.printStackTrace();
-	}
-
-	try {
-	    Thread.sleep(4000);
-	} catch (InterruptedException e1) {
-	    e1.printStackTrace();
-	}
-	int pc;
-	while ((pc = sm.getPercentageHashCompletion()) < 100) {
-	    System.out.println(pc + "% " + (sm.getHashingSpeed() / 1024 / 1024) + " MBps");
-	    try {
-		Thread.sleep(1000);
-	    } catch (InterruptedException e) {
-		e.printStackTrace();
-	    }
-	}
-	System.out.println(sm.ownFL.getFilelist().printTree());
-	try {
-	    sm.saveOwnFL();
-	} catch (FileNotFoundException e) {
-	    e.printStackTrace();
-	} catch (IOException e) {
-	    e.printStackTrace();
-	}
+    /**
+     * Allows you to send data of a virtual
+     * file. A virtual file is simply bytes
+     * stored in main memory (RAM). It could
+     * have been read from a file, but usually
+     * this will be String.getBytes().
+     * @param uri The path of the virtual
+     * file without the 'cache://' prefix.
+     * This path can be anything independent
+     * of its location in file list. This path
+     * is simply FLFile.path without the
+     * 'cache://' prefix.
+     * @return The bytes of the virtual file.
+     */
+    protected byte[] getCacheFileData(String uri) {
+	return null;
     }
 
+    /**
+     * This provides easy means to set
+     * different exclusive file list
+     * for a particular user. You can
+     * use this (say) return empty file
+     * list to a particular user.
+     * <p>
+     * You probably won't be using this feature
+     * but what's the problem with giving
+     * you the power to do so. ;-)
+     * <p>
+     * You will most probably use it in conjugation with
+     * {@link #getOwnFL(User, double)}.
+     * 
+     * @param u The user who wants to download
+     * your file list.
+     * @return The file list's bytes. It
+     * must have been compressed using
+     * bzip2 and must be in XML format.
+     */
+    protected byte[] getVirtualFLData(User u) {
+	return null;
+    }
+
+    /**
+     * Override this if you want to provide a
+     * custom file list for a user. This will
+     * be called by {@link #getFile(User, String, org.elite.jdcbot.framework.DUEntity.Type, long, long)}
+     * and {@link #searchOwnFileList(SearchSet, int, User, double)}.
+     * <p>
+     * You will most probably use it in conjugation with
+     * {@link #getVirtualFLData(User)}.
+     * @param u The user in question.
+     * @param certainity This is probability value
+     * which specifies how certain we are that the
+     * above user is <u>really</u> one who needs to access
+     * your file list. This weird argument was needed as
+     * during active search only user's IP is known and
+     * many users can actually share that IP. If only
+     * one user was found with this IP then probability
+     * is 1.0, else it gets divided by the total number
+     * of users found with that IP. In passive search,
+     * etc. it is always 1.0. But do note that <b><i>u</i>
+     * can be null</b> sometimes (particularly in case of
+     * active search) as IP information of all users is
+     * not always available.
+     * <p>
+     * See comment in the code of
+     * {@link org.elite.jdcbot.framework.jDCBot#onSearch(String,int,SearchSet) onSearch(String,int,SearchSet)}
+     * to exactly how this probability is calculated.
+     * @return Root FLDir of the file list.
+     */
+    protected FLDir getOwnFL(User u, double certainity) {
+	synchronized (ownFL) {
+	    return ownFL.getFilelist();
+	}
+    }
 }

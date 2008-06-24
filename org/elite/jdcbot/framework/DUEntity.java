@@ -39,7 +39,7 @@ public class DUEntity implements Serializable {
     /**
      * The file type.
      * @author AppleGrew
-     * @since 0.8
+     * @since 1.0
      * @version 0.1
      */
     public static enum Type {
@@ -75,11 +75,11 @@ public class DUEntity implements Serializable {
     /**
      * The OutputStream to which the downloaded file is to be written.
      */
-    private OutputStream os;
+    private transient OutputStream os;
     /**
      * The InputStream from which the file to be uploaded is to be read.
      */
-    private InputStream in;
+    private transient InputStream in;
     /**
      * The starting byte offset of the file from which to start download. Usually this will be 0.
      */
@@ -106,6 +106,17 @@ public class DUEntity implements Serializable {
     private int settingFlags = 0;
 
     private int hashCode = -1;
+
+    protected DUEntity() {
+	file="";
+	fileType = Type.FILELIST;
+	start = 0;
+	len = -1;
+	in = null;
+	os = null;
+	settingFlags = 0;
+	init();
+    }
 
     /**
      * This constructor initializes <i>start</i> to 0 and <i>len</i>

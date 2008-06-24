@@ -29,15 +29,17 @@ package org.elite.jdcbot.shareframework;
 public class ShareException extends Exception {
     private static final long serialVersionUID = -6076703447475277574L;
 
-    public static enum Error{
+    public static enum Error {
 	NONE,
 	FILELIST_NOT_YET_SET,
 	NOTHING_TO_PASTE,
 	CANNOT_PASTE_DIR_INTO_ITSELF,
 	CANNOT_PASTE_NAME_ALREADY_EXISTS,
 	CANNOT_PASTE_DIR_INTO_ITS_SUB_DIR,
-	FILE_OR_DIR_NOT_FOUND;
-	
+	FILE_OR_DIR_NOT_FOUND,
+	INVALID_NAME,
+	HASHING_JOB_IN_PROGRESS;
+
 	/**
 	 * Returns a better explanatory message for the Error.
 	 */
@@ -65,22 +67,28 @@ public class ShareException extends Exception {
 		case FILE_OR_DIR_NOT_FOUND:
 		    e = "File or directory not found";
 		    break;
+		case INVALID_NAME:
+		    e = "The name is invalid because it contains illegal characters";
+		    break;
+		case HASHING_JOB_IN_PROGRESS:
+		    e = "Hashing is in progress";
+		    break;
 		default:
 		    e = "Unknow Error type";
 	    }
 	    return e;
 	}
     }
-    
+
     private String msg = "";
-    private Error error=Error.NONE;
-    
+    private Error error = Error.NONE;
+
     public ShareException(Error error) {
 	super();
 	this.error = error;
 	msg = error.toString();
     }
-    
+
     /**
      * This allows to set arbitrary message for the error.
      * @param e
@@ -91,7 +99,7 @@ public class ShareException extends Exception {
 	this.error = error;
 	msg = e;
     }
-    
+
     public Error getError() {
 	return error;
     }
@@ -99,5 +107,5 @@ public class ShareException extends Exception {
     public String getMessage() {
 	return msg;
     }
-    
+
 }

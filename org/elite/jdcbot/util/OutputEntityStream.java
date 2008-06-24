@@ -137,17 +137,21 @@ public class OutputEntityStream extends OutputStream {
     }
 
     /**
-     * Transfer rate in bytes per second.
-     * @return
+     * @return Transfer rate in bytes per second.
      */
     public double getTransferRate() {
 	return meter.getRate();
     }
 
     /**
-     * I hate JAVA for not having multiple inheritence.
-     *
+     * @since 1.0
+     * @return The time remaining for the
+     * completion of transfer in seconds.
      */
+    public double getTimeRemaining() {
+	return meter.getTimeRemaining();
+    }
+
     private class Meter extends ProgressMeter {
 	public Meter() {}
 

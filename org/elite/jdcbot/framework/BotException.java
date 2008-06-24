@@ -51,7 +51,9 @@ public class BotException extends Exception {
 	UPLOAD_TO_USER_BLOCKED,
 	FAILED_TO_DELETE_TEMP_FILE,
 	CONNECTION_TO_REMOTE_CLIENT_FAILED,
-	TIMEOUT;
+	TIMEOUT,
+	ALREADY_CONNECTED,
+	CANNOT_DOWNLOAD_FROM_SELF;
 
 	/**
 	 * Returns a better explanatory message for the Error.
@@ -75,7 +77,7 @@ public class BotException extends Exception {
 		    e = "Wrong Password";
 		    break;
 		case NOT_CONNECTED_TO_HUB:
-		    e = "I am not conneced to any hub";
+		    e = "I am not conneced to hub";
 		    break;
 		case USERNAME_NOT_FOUND:
 		    e = "Username doesn't exists";
@@ -115,6 +117,12 @@ public class BotException extends Exception {
 		    break;
 		case TIMEOUT:
 		    e = "Connection timed out";
+		    break;
+		case ALREADY_CONNECTED:
+		    e = "Already connected to remote client or hub";
+		    break;
+		case CANNOT_DOWNLOAD_FROM_SELF:
+		    e = "Cannot download from self";
 		    break;
 		default:
 		    e = "Unknow Error type";

@@ -26,6 +26,8 @@ import java.io.OutputStream;
  * User class.
  * <p>
  * Holds everything about user (description, e-mail, sharesize...)
+ * <p>
+ * This class is thread safe.
  * 
  * @since 0.6
  * @author Kokanovic Branko
@@ -47,6 +49,7 @@ public class User {
     private boolean _hasInfo, _op, extraSlotsGranted, blockUploadToUser;
     private jDCBot _bot;
     private String _CID;
+    private boolean hasQuit = false;
 
     private int hashCode = -1;
 
@@ -82,7 +85,7 @@ public class User {
 	_bot = bot;
 	extraSlotsGranted = false;
 	blockUploadToUser = false;
-	_CID = "";
+	_CID = null;
 
 	int index = _desc.indexOf('<');
 	if (index == -1)
@@ -122,6 +125,14 @@ public class User {
 	hashCode = 1;
 	hashCode = hashCode * HASH_CONST + _username.hashCode();
 	hashCode = hashCode * HASH_CONST + (_bot == null ? 0 : _bot.getHubSignature().hashCode());
+    }
+
+    public boolean hasQuit() {
+	return hasQuit;
+    }
+
+    void setHasQuit() {
+	hasQuit = true;
     }
 
     public String getClientID() {
@@ -249,11 +260,13 @@ public class User {
      * @return Client that user use if it exist, "" otherwise
      */
     public String client() {
-	if (_tag.length() < 1)
-	    return "";
-	if (_tag.indexOf(' ') == -1)
-	    return "";
-	return _tag.substring(0, _tag.indexOf(' '));
+	synchronized (_tag) {
+	    if (_tag.length() < 1)
+		return "";
+	    if (_tag.indexOf(' ') == -1)
+		return "";
+	    return _tag.substring(0, _tag.indexOf(' '));
+	}
     }
 
     /**
@@ -261,14 +274,16 @@ public class User {
      * @return Version of the client user use if it exist in tag, "" otherwise
      */
     public String version() {
-	if (_tag.contains(" V:")) {
-	    int index1 = _tag.indexOf(" V:") + 2;
-	    int index2 = _tag.indexOf(',', index1);
-	    if (index2 == -1)
+	synchronized (_tag) {
+	    if (_tag.contains(" V:")) {
+		int index1 = _tag.indexOf(" V:") + 2;
+		int index2 = _tag.indexOf(',', index1);
+		if (index2 == -1)
+		    return "";
+		return _tag.substring(index1, index2 + 1);
+	    } else
 		return "";
-	    return _tag.substring(index1, index2 + 1);
-	} else
-	    return "";
+	}
     }
 
     /**
@@ -276,10 +291,12 @@ public class User {
      * @return true if user is active, false if it is in passive mode, or tag does not exist
      */
     public boolean isActive() {
-	if (_tag.contains(",M:A"))
-	    return true;
-	else
-	    return false;
+	synchronized (_tag) {
+	    if (_tag.contains(",M:A"))
+		return true;
+	    else
+		return false;
+	}
     }
 
     /**
@@ -287,14 +304,16 @@ public class User {
      * @return Number of slots user have if exists in tag, 0 otherwise 
      */
     public int slots() {
-	if (_tag.contains(",S:")) {
-	    int index1 = _tag.indexOf(",S:") + 3;
-	    String buffer = new String();
-	    while ((_tag.charAt(index1) != '>') && (_tag.charAt(index1) != ',') && (_tag.charAt(index1) != ' '))
-		buffer += _tag.charAt(index1++);
-	    return Integer.parseInt(buffer);
-	} else
-	    return 0;
+	synchronized (_tag) {
+	    if (_tag.contains(",S:")) {
+		int index1 = _tag.indexOf(",S:") + 3;
+		String buffer = new String();
+		while ((_tag.charAt(index1) != '>') && (_tag.charAt(index1) != ',') && (_tag.charAt(index1) != ' '))
+		    buffer += _tag.charAt(index1++);
+		return Integer.parseInt(buffer);
+	    } else
+		return 0;
+	}
     }
 
     public boolean isGrantedExtraSlot() {
@@ -370,7 +389,7 @@ public class User {
 
 	if (o instanceof User) {
 	    User u = (User) o;
-	    if (u.username().equals(username()) && u.getHubSignature().equals(getHubSignature()))
+	    if (u.username().equalsIgnoreCase(username()) && u.getHubSignature().equals(getHubSignature()))
 		return true;
 	}
 	return false;
@@ -383,7 +402,7 @@ public class User {
 
     @Override
     public String toString() {
-	return _username + "@" + getHubSignature() + " CID:" + _CID == null ? "unknown" : _CID;
+	return _username + "@" + getHubSignature() + " CID:" + (_CID == null || _CID.isEmpty() ? "unknown" : _CID);
     }
 
 }

@@ -20,7 +20,12 @@
 
 package org.elite.jdcbot.framework;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.StringTokenizer;
 
 /**
  * An user manager class.
@@ -29,6 +34,8 @@ import java.util.*;
  * You shoudn't use this class directly, 
  * idea is to have only ine instance and that one is in jDCBot class. 
  * You should rather add methods in jDCBot (example is GetRandomUser in jDCBot class)
+ * <p>
+ * Since version 1.0 this class is thread safe.
  * 
  * @since 0.6
  * @author Kokanovic Branko
@@ -36,13 +43,13 @@ import java.util.*;
  * @version 0.8
  */
 public class UserManager {
-    private Vector<User> users;
+    private List<User> users;
 
     private jDCBot _bot;
 
     public UserManager(jDCBot bot) {
 	_bot = bot;
-	users = new Vector<User>();
+	users = Collections.synchronizedList(new ArrayList<User>());
     }
 
     /**
@@ -53,31 +60,33 @@ public class UserManager {
      *                List of all users delimited with '$$'
      */
     public void addUsers(String user_list) {
-	users.clear();
-	ArrayList<String> userList = parseDoubleDollarList(user_list);
-	for (int i = 0; i < userList.size(); i++) {
-	    String user = userList.get(i);
-	    if (!user.equals(_bot.botname())) {
-		users.add(new User(user, _bot));
-		//_bot.getDispatchThread().callOnUpdateMyInfo(user);
-		try {
-		    if (!_bot.isHubSupports("NoGetINFO")) {
-			String cmd = "$GetINFO $" + user + " $" + _bot.botname() + "|";
-			_bot.log.println(cmd);
-			_bot.SendCommand(cmd);
-		    }
-		} catch (Exception e) {}
+	synchronized (users) {
+	    users.clear();
+	    List<String> userList = parseDoubleDollarList(user_list);
+	    for (int i = 0; i < userList.size(); i++) {
+		String user = userList.get(i);
+		if (!user.equals(_bot.botname())) {
+		    users.add(new User(user, _bot));
+		    try {
+			if (!_bot.isHubSupports("NoGetINFO")) {
+			    String cmd = "$GetINFO $" + user + " $" + _bot.botname() + "|";
+			    _bot.log.println(cmd);
+			    _bot.SendCommand(cmd);
+			}
+		    } catch (Exception e) {}
+		}
 	    }
 	}
     }
 
     public void updateUserIPs(String list) {
-	ArrayList<String> userList = parseDoubleDollarList(list);
+	List<String> userList = parseDoubleDollarList(list);
 	for (int i = 0; i < userList.size(); i++) {
 	    String userNip = userList.get(i);
 	    int spcpos = userNip.indexOf(' ');
 	    String user = userNip.substring(0, spcpos);
 	    String ip = userNip.trim().substring(spcpos);
+
 	    User u = getUser(user);
 	    u.setUserIP(ip);
 	    _bot.getDispatchThread().callOnUpdateMyInfo(user);
@@ -85,20 +94,23 @@ public class UserManager {
     }
 
     /**
-     * Sets the users (including the bot) in the list as operators. If the user is not in the internal data structure then it is automatically added.
+     * Sets the users (including the bot) in the list as operators. If the user is not in the internal
+     * data structure then it is automatically added.
      * @param user_list
      */
     public void addOps(String user_list) {
-	ArrayList<String> userList = parseDoubleDollarList(user_list);
+	List<String> userList = parseDoubleDollarList(user_list);
 	for (int i = 0; i < userList.size(); i++) {
 	    String user = userList.get(i);
 	    if (user.equals(_bot.botname()))
 		_bot.setOp(true);
 	    else {
-		if (!userExist(user))
-		    users.add(new User(user, _bot));
-		User u = getUser(user);
-		u.setOp(true);
+		synchronized (users) {
+		    if (!userExist(user))
+			users.add(new User(user, _bot));
+		    User u = getUser(user);
+		    u.setOp(true);
+		}
 		_bot.getDispatchThread().callOnUpdateMyInfo(user);
 	    }
 	}
@@ -106,10 +118,12 @@ public class UserManager {
 
     /**
      * Parses double dollar delimited list. e.g. username1$$username2$$username3...
+     * <p>
+     * This code is re-entrant.
      * @param list The list (only).
      * @return
      */
-    private ArrayList<String> parseDoubleDollarList(String list) {
+    private List<String> parseDoubleDollarList(String list) {
 	ArrayList<String> alist = new ArrayList<String>();
 
 	StringTokenizer st = new StringTokenizer(list, "$$");
@@ -123,34 +137,40 @@ public class UserManager {
     /**
      * Throw out user from our list since he quited
      * 
-     * @param user
-     *                Nick of the user who quited
+     * @param user Nick of the user who quited
      */
     public void userQuit(String user) {
-	Iterator i = users.iterator();
-	while (i.hasNext()) {
-	    User u = (User) i.next();
-	    if (u.username().equals(user))
-		i.remove();
+	synchronized (users) {
+	    Iterator<User> i = users.iterator();
+	    while (i.hasNext()) {
+		User u = i.next();
+		if (u.username().equalsIgnoreCase(user)) {
+		    u.setHasQuit();
+		    users.remove(u);
+		}
+	    }
 	}
     }
 
     /**
      * Add user to our list since user joined hub
      * 
-     * @param user
-     *                Nick of the user who joined
+     * @param user Nick of the user who joined
      */
     public void userJoin(String user) {
-	Iterator i = users.iterator();
 	boolean contains = false;
-	while (i.hasNext()) {
-	    User u = (User) i.next();
-	    if (u.username().equals(user))
-		contains = true;
+	synchronized (users) {
+	    for (User u : users) {
+		if (u.username().equalsIgnoreCase(user)) {
+		    contains = true;
+		    break;
+		}
+	    }
+
+	    if (contains == false)
+		users.add(new User(user, _bot));
 	}
-	if (contains == false)
-	    users.add(new User(user, _bot));
+
 	try {
 	    if (!_bot.isHubSupports("NoGetINFO")) {
 		String cmd = "$GetINFO $" + user + " $" + _bot.botname() + "|";
@@ -161,19 +181,16 @@ public class UserManager {
     }
 
     /**
-     * 
-     * @param user
-     *                Nick of the user to find out is he on the hub
+     * @param user Nick of the user to find out is he on the hub
      * @return true if user is n the hub, false otherwise
      */
     public boolean userExist(String user) {
-	Iterator i = users.iterator();
-	while (i.hasNext()) {
-	    User u = (User) i.next();
-	    if (u.username().equals(user))
-		return true;
+	synchronized (users) {
+	    for (User u : users)
+		if (u.username().equalsIgnoreCase(user))
+		    return true;
+	    return false;
 	}
-	return false;
     }
 
     /**
@@ -183,13 +200,15 @@ public class UserManager {
      * @param isRegx If you are using a regular expression for
      * to (for example) find users in a range of IP addresses, then
      * set this to true.
-     * @return The list of users with matching IPs.
+     * @return The list of users with matching IPs. This is never null.
      */
-    public Vector<User> getUserByIP(String ip, boolean isRegx) {
-	Vector<User> ru = new Vector<User>();
-	for (User u : users) {
-	    if (isRegx ? u.getUserIP().matches(ip) : u.getUserIP().equals(ip))
-		ru.add(u);
+    public List<User> getUserByIP(String ip, boolean isRegx) {
+	List<User> ru = new ArrayList<User>();
+	synchronized (users) {
+	    for (User u : users) {
+		if (isRegx ? u.getUserIP().matches(ip) : u.getUserIP().equals(ip))
+		    ru.add(u);
+	    }
 	}
 	return ru;
     }
@@ -197,30 +216,27 @@ public class UserManager {
     /**
      * Gets everything about user.
      * 
-     * @param user
-     *                Nick of the user
+     * @param user Nick of the user
      * @return User class if user exist, null otherwise
      */
     public User getUser(String user) {
-	Iterator i = users.iterator();
-	while (i.hasNext()) {
-	    User u = (User) i.next();
-	    if (u.username().equalsIgnoreCase(user)) {
-		/*if (u.hasInfo() == false)
-		 return null;
-		 else*/
-		return u;
-	    }
+	synchronized (users) {
+	    for (User u : users)
+		if (u.username().equalsIgnoreCase(user)) {
+		    return u;
+		}
+	    return null;
 	}
-	return null;
     }
 
     public User getUserByCID(String CID) {
-	for (User u : users) {
-	    if (u.getClientID() != null && u.getClientID().equalsIgnoreCase(CID))
-		return u;
+	synchronized (users) {
+	    for (User u : users) {
+		if (u.getClientID() != null && u.getClientID().equalsIgnoreCase(CID))
+		    return u;
+	    }
+	    return null;
 	}
-	return null;
     }
 
     /**
@@ -229,25 +245,28 @@ public class UserManager {
      * @return Random user
      */
     public User getRandomUser() {
-	if (users.isEmpty())
-	    return null;
-	int i = users.size();
-	int a = new Random().nextInt(i);
-	return (User) users.get(a);
+	synchronized (users) {
+	    if (users.isEmpty())
+		return null;
+	    int i = users.size();
+	    int a = new Random().nextInt(i);
+	    return (User) users.get(a);
+	}
     }
 
     public User[] getAllUsers() {
-	if (users.isEmpty())
-	    return null;
-	User u[] = new User[1];
-	return users.toArray(u);
+	synchronized (users) {
+	    if (users.isEmpty())
+		return null;
+	    User u[] = new User[1];
+	    return users.toArray(u);
+	}
     }
 
     /**
      * Sets user info (description, e-mail...)
      * 
-     * @param info
-     *                Info from the user that will be parsed
+     * @param info Info from the user that will be parsed
      */
     public void SetInfo(String info) {
 	String user, desc, conn, mail, share;
@@ -284,15 +303,19 @@ public class UserManager {
 	    share = share + info.charAt(index);
 	    index++;
 	}
-	Iterator i = users.iterator();
-	while (i.hasNext()) {
-	    User u = (User) i.next();
-	    if (u.username().equals(user)) {
-		i.remove();
-		users.add(new User(user, desc, conn, mail, share, _bot));
-		return;
+
+	synchronized (users) {
+	    Iterator<User> i = users.iterator();
+	    while (i.hasNext()) {
+		User u = i.next();
+		if (u.username().equalsIgnoreCase(user)) {
+		    i.remove();
+		    users.add(new User(user, desc, conn, mail, share, _bot));
+		    return;
+		}
 	    }
 	}
+
 	_bot.getDispatchThread().callOnUpdateMyInfo(user);
     }
 
@@ -313,7 +336,7 @@ public class UserManager {
 
 	long _timeout;
 
-	Vector<User> useri = new Vector<User>(users);
+	List<User> useri = new ArrayList<User>(users);
 
 	public SendingAll(String pm, long timeout) {
 	    _pm = pm;
@@ -321,11 +344,9 @@ public class UserManager {
 	}
 
 	public void run() {
-	    Iterator i = useri.iterator();
-	    while (i.hasNext()) {
-		User u = (User) i.next();
+	    for (User u : useri) {
 		try {
-		    if (!(_bot.botname().equals(u.username())))
+		    if (!(_bot.botname().equalsIgnoreCase(u.username())))
 			_bot.SendPrivateMessage(u.username(), _pm);
 		    sleep(_timeout);
 		} catch (Exception e) {}

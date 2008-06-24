@@ -34,14 +34,15 @@ import jonelo.jacksum.algorithm.AbstractChecksum;
  * Generates TTH.
  *
  * @author AppleGrew
- * @see 0.7.2
- * @version 0.1.1
+ * @since 0.7.2
+ * @version 0.1.2
  */
 public class HashManager implements Runnable {
     private AbstractChecksum checksum = null;
     private Thread th = null;
     private HashUser hu = null;
     private File _f[] = null;
+    private boolean cancel = false;
 
     private void init() {
 	try {
@@ -63,12 +64,31 @@ public class HashManager implements Runnable {
 	if (th != null)
 	    throw new HashException(HashException.Error.HASHING_IN_PROGRESS);
 
+	cancel = false;
+
 	hu = hashUser;
 	_f = filesOrDirs;
 
-	th = new Thread(this, "Hash Thread");
+	th = new Thread(this, "Hashing Thread");
 	th.start();
 
+    }
+
+    /**
+     * Cancelling the hash job may not
+     * terminate hashing instantly since we
+     * cannot simply kill the thread.
+     * @return
+     */
+    public boolean isHashingStillRunning() {
+	return th != null;
+    }
+
+    public void cancelHashing() {
+	if (th != null) {
+	    cancel = true;
+	    th.interrupt();
+	}
     }
 
     public String getHash(InputStream in) throws HashException {
@@ -100,6 +120,8 @@ public class HashManager implements Runnable {
 	    String hash = null;
 	    try {
 		hu.hashingOfFileStarting(f);
+		if (in == null)
+		    throw new HashException(HashException.Error.HASHING_CANCELLED);
 		hash = getHash(in);
 		hu.onFileHashed(f, hash, true, null);
 	    } catch (HashException e) {
@@ -121,6 +143,8 @@ public class HashManager implements Runnable {
 	});
 	if (files != null) {
 	    for (File f : files) {
+		if (cancel)
+		    return;
 		hashFile(f);
 	    }
 	}
@@ -140,12 +164,16 @@ public class HashManager implements Runnable {
 
     private void hashDirs(File dirs[]) {
 	for (File d : dirs) {
+	    if (cancel)
+		return;
 	    hashDir(d);
 	}
     }
 
     public void run() {
 	for (File f : _f) {
+	    if (cancel)
+		break;
 	    if (f.isFile())
 		hashFile(f);
 	    else if (f.isDirectory())

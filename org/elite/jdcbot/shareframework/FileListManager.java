@@ -19,7 +19,8 @@
  */
 package org.elite.jdcbot.shareframework;
 
-import java.util.Vector;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created on 05-Jun-08<br>
@@ -27,7 +28,9 @@ import java.util.Vector;
  * search, etc. the file list. Please
  * note that the virtual paths are UNIX
  * style that they are forward slash '/'
- * delimited and are case sensitive.
+ * delimited and are case sensitive. All
+ * absolute virtual paths start with
+ * /Root.
  *
  * @author AppleGrew
  * @since 1.0
@@ -50,7 +53,22 @@ public class FileListManager {
 	return filelist;
     }
 
+    /**
+     * Sets a file list and present working
+     * directory to <i>fl</i>.
+     * @param fl If this is not root then
+     * a new 'root' FLDir is created and <i>fl</i>
+     * is added as its sub-directory. This
+     * can be null.
+     */
     public void setFilelist(FLDir fl) {
+	if (fl != null && !fl.isRoot()) {
+	    FLDir root = new FLDir("Root", true, null);
+	    root.addSubDir(fl);
+	    fl.setParent(root);
+	    fl = root;
+	}
+
 	filelist = fl;
 	pwd = fl;
     }
@@ -64,7 +82,7 @@ public class FileListManager {
      * @return A Vector list of the matching files/directories. null is
      * returned only if file list has yet not been set.
      */
-    public Vector<SearchResultSet> search(SearchSet For, final int maxResult, boolean all) {
+    public List<SearchResultSet> search(SearchSet For, final int maxResult, boolean all) {
 	if (filelist == null)
 	    return null;
 	else
@@ -137,21 +155,47 @@ public class FileListManager {
     /**
      * Renames the given virtual file or
      * directory in the file list to another name.
-     * @param what
-     * @param to
+     * @param what The virtual path to the file or directory.
+     * @param to The new name (only), not full path.
+     * @throws ShareException 
      */
-    public void rename(String what, String to) {
-    //TODO
+    public void rename(String what, String to) throws ShareException {
+	if (filelist == null)
+	    throw new ShareException(ShareException.Error.FILELIST_NOT_YET_SET);
+	if (to.contains("/") || to.contains("\\"))
+	    throw new ShareException(ShareException.Error.INVALID_NAME);
+
+	FLInterface fd = filelist.getChildInTree(getDirNamesFromPath(what), false);
+	if (fd instanceof FLDir)
+	    ((FLDir) fd).setName(to);
+	else
+	    ((FLFile) fd).name = to;
     }
 
-    public Vector<String> getDirNamesFromPath(String path) {
+    /**
+     * @return The contents of present working directory. It is never
+     * null.
+     * @throws ShareException
+     */
+    public List<FLInterface> ls() throws ShareException {
+	if (filelist == null)
+	    throw new ShareException(ShareException.Error.FILELIST_NOT_YET_SET);
+	if (pwd == null)
+	    pwd = filelist;
+	List<FLInterface> fd = new ArrayList<FLInterface>();
+	fd.addAll(pwd.getFiles());
+	fd.addAll(pwd.getSubDirs());
+	return fd;
+    }
+
+    public List<String> getDirNamesFromPath(String path) {
 	if (pwd == null)
 	    pwd = filelist;
 	if (!path.startsWith("/"))
 	    path = pwd.getDirPath() + "/" + path;
 
 	String p[] = path.split("/");
-	Vector<String> v = new Vector<String>();
+	List<String> v = new ArrayList<String>();
 	for (int i = 1; i < p.length; i++)
 	    v.add(p[i]);
 	return v;

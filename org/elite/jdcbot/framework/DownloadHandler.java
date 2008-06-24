@@ -37,6 +37,8 @@ import org.apache.tools.bzip2.CBZip2InputStream;
  * Handels all the downloads from a single user for a session.
  * <p>
  * This is used internally, you are not required do anything with this.
+ * <p>
+ * This class is thread safe.
  *
  * @author AppleGrew
  * @since 0.7
@@ -324,7 +326,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 
     private synchronized void theEnd() {
 	try {
-	    if (_socket != null)
+	    if (_socket != null && !_socket.isClosed())
 		_socket.close();
 	} catch (IOException e) {
 	    _jdcbot.log.println("IOException during closing socket in DownloadHandler thread: " + e.getMessage());

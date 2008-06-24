@@ -25,14 +25,16 @@ import java.io.InputStream;
  * Created on 27-May-08<br>
  * This provides timeout to the wrapped InputThread.
  * When the timer expires it will close the wrapped
- * InputThread.
+ * InputThread. This is used by UploadHandler so that
+ * idle connections can be closed and slots can be freed
+ * for the needy.
  *
  * @author AppleGrew
  * @since 0.7
  * @version 0.1
  */
 public class TimeoutInputThread extends InputThread {
-    private long timeout = 60000L;
+    private long timeout = 30000; //30 sec
     private Timer timer = null;
 
     /** Constructs thread that will read raw commands from hub
@@ -41,36 +43,42 @@ public class TimeoutInputThread extends InputThread {
      * @param in InputStream class from which we will read.
      */
     public TimeoutInputThread(InputThreadTarget inputThreadTrgt, InputStream in) {
-	super(inputThreadTrgt, in);
+	super(inputThreadTrgt, in, "TimeoutInputThread");
 	timer = new Timer();
     }
 
     @Override
     protected void onReadingCommand() {
-	timer.stopIt();
-	timer = new Timer();
-	timer.start();
+	timer.resetTimer();
     }
 
     @Override
     public void start() {
 	super.start();
+	timer.start();
+	timer.resetTimer();
+    }
+
+    @Override
+    public void stop() {
+	timer.stopIt();
+	super.stop();
     }
 
     private void onTimeout() {
-	super.stop();
-	timer.stopIt();
+	stop();
     }
 
     private class Timer extends Thread {
-	private boolean timerRunning = true;
+	private volatile boolean timerRunning = true;
+	private long prevTime = -1;
 
 	public void run() {
 	    while (timerRunning) {
 		try {
 		    sleep(timeout);
-		    onTimeout();
-		    timerRunning = false;
+		    if (prevTime != -1 && System.currentTimeMillis() - prevTime >= timeout)
+			onTimeout();
 		} catch (InterruptedException e) {}
 	    }
 	}
@@ -83,6 +91,10 @@ public class TimeoutInputThread extends InputThread {
 	    try {
 		interrupt();
 	    } catch (Exception e) {}
+	}
+
+	public void resetTimer() {
+	    prevTime = System.currentTimeMillis();
 	}
 
     }

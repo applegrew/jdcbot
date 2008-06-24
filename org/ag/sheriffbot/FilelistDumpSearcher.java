@@ -215,19 +215,15 @@ public class FilelistDumpSearcher {
 	    }
 
 	} catch (FileNotFoundException e) {
-	    // TODO Auto-generated catch block
 	    e.printStackTrace();
 	} catch (IOException e) {
-	    // TODO Auto-generated catch block
 	    e.printStackTrace();
 	} catch (ParserConfigurationException e) {
 	    ///e.printStackTrace();
 	} catch (SAXParseException e) {
-	    // TODO Auto-generated catch block
 	    e.printStackTrace();
 	    System.err.println("Line: " + e.getLineNumber() + "; Col:" + e.getColumnNumber());
 	} catch (SAXException e) {
-	    // TODO Auto-generated catch block
 	    e.printStackTrace();
 	}
 	return results;

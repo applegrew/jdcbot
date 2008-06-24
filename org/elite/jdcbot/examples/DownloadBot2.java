@@ -184,7 +184,7 @@ public class DownloadBot2 extends jDCBot {
 	}
     }
 
-    public Query[] getSegmentedQuery(String query) {
+    private Query[] getSegmentedQuery(String query) {
 	Vector<Query> Q = new Vector<Query>();
 	String qs[] = query.split("&");
 	for (String q : qs) {

@@ -22,6 +22,7 @@ package org.elite.jdcbot.framework;
 import java.io.IOException;
 
 import org.elite.jdcbot.shareframework.SearchSet;
+import org.elite.jdcbot.shareframework.ShareManager;
 
 /**
  * Created on 09-Jun-08
@@ -30,15 +31,65 @@ import org.elite.jdcbot.shareframework.SearchSet;
  * 
  */
 public interface BotInterface {
-    boolean isPassive();
 
-    int getMaxDownloadSlots();
+    public boolean UserExist(String user);
 
-    boolean UserExist(String user);
+    public String getBotClientProtoSupports();
 
-    String getBotClientProtoSupports();
+    /**
+     * Searches in the hub.
+     * @param what The term to search for as per constrains given.
+     * @throws IOException When communication error occurs.
+     */
+    public void Search(SearchSet ss) throws IOException;
 
-    void Search(SearchSet ss) throws IOException;
+    public String getBotHubProtoSupports();
 
-    User getUserByCID(String cid);
+    public ShareManager getShareManager();
+
+    public DownloadCentral getDownloadCentral();
+
+    public String botname();
+
+    /**
+     * Checks if the bot's client-hub protocol implementation supports that protocol feature.
+     * @param feature
+     * @return
+     */
+    public boolean isBotHubProtoSupports(String feature);
+
+    /**
+     * Checks if the bot's client-client protocol implementation supports that protocol feature.
+     * @param feature
+     * @return
+     */
+    public boolean isBotClientProtoSupports(String feature);
+
+    public int getMaxUploadSlots();
+
+    public int getMaxDownloadSlots();
+
+    public int getFreeUploadSlots();
+
+    public int getFreeDownloadSlots();
+
+    public User[] GetAllUsers();
+
+    public void terminate();
+
+    public void setMaxUploadSlots(int slots);
+
+    public void setMaxDownloadSlots(int slots);
+
+    public void setShareManager(ShareManager sm);
+
+    public User getUser(String username);
+
+    public User getUserByCID(String cid);
+
+    public String getMiscDir();
+
+    public String getIncompleteDir();
+
+    public void updateShareSize();
 }

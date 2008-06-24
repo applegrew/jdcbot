@@ -31,9 +31,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.util.Vector;
-
-import javax.imageio.IIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import org.elite.jdcbot.shareframework.SearchSet;
 import org.elite.jdcbot.util.OutputEntityStream;
@@ -42,33 +42,34 @@ import org.elite.jdcbot.util.OutputEntityStream;
  * Created on 09-Jun-08<br>
  * Manages partial file downloading, auto resume, multi-source download, etc.
  * Segmented download is not yet implemented. Could be in future.
+ * <p>
+ * This class is thread safe.
+ * 
  * @author AppleGrew
  * @since 1.0
  * @version 0.1
  */
-public class DownloadCentral implements Serializable, Runnable {
-    private static final long serialVersionUID = -1567266569610909427L;
+public class DownloadCentral implements Runnable {
+    private static final String queueFileName = "queue";
+    private static final long timeBetweenSearches = 10 * 1000; //10 sec
 
     public static enum State {
 	QUEUED, RUNNING;
     }
 
-    private Vector<Download> toDownload = new Vector<Download>();
-    transient private String incompleteDir;
-    transient private BotInterface boi;
-    transient private Thread th;
-    transient volatile private boolean run = false;
-    double transferRate = 0;
+    private List<Download> toDownload = Collections.synchronizedList(new ArrayList<Download>());
+    private String incompleteDir;
+    private BotInterface boi;
+    private Thread th;
+    volatile private boolean run = false;
+    volatile private boolean supressSearch = false;
+    private double transferRate = 0;
+
+    private long lastSearchTime = -1;
 
     /**
      * Constructs a new instance of DownloadCentral.<br>
-     * <p>
-     * You need to call the following methods after this
-     * in the order shown.<br>
-     * <ol>
-     * <li>setDirs(String)</li>
-     * <li>startNewQueueProcessThread()</li>
-     * </ol>
+     * 
      * @param boi The reference to jDCBot or MultiHubsAdapter (when running multiple hubs support is needed).
      */
     public DownloadCentral(BotInterface boi) {
@@ -76,67 +77,206 @@ public class DownloadCentral implements Serializable, Runnable {
     }
 
     /**
-     * Note that setting value of Incomplete folder to any other value will
-     * only make the newly added files for download to be stored there. Previously
-     * added files are still expected to be available in the last incomplete
-     * directory location.
+     * Called by jDCBot or MultiHubsAdapter on
+     * setDownloadManager().
+     * <p>
+     * Make sure the directory exists.
+     * <p>
+     * If the files in download queue (which had been
+     * partially downloaded before) exists no more in
+     * the given directory then as expected download
+     * will start again from scratch.
+     * 
      * @param path2IncompleteDir
-     * @throws IIOException
-     * @throws FileNotFoundException
-     * @throws IOException
      */
-    public void setDirs(String path2IncompleteDir) throws IIOException, FileNotFoundException, IOException {
-	File incompleteDir = new File(path2IncompleteDir);
-	if (!incompleteDir.exists())
-	    throw new FileNotFoundException();
-	if (!incompleteDir.isDirectory())
-	    throw new IIOException("Given path '" + path2IncompleteDir + "' is not a directory.");
-	this.incompleteDir = incompleteDir.getCanonicalPath();
+    public void setDirs(String path2IncompleteDir) {
+	incompleteDir = path2IncompleteDir;
     }
 
-    public void startNewQueueProcessThread() {
-	if (th != null && th.getState() == Thread.State.RUNNABLE) {
+    /**
+     * Called by jDCBot or MultiHubsAdapter on
+     * setDownloadManager().
+     * <p>
+     * This will load the queue file.
+     */
+    public void init() {
+	File qf = new File(boi.getMiscDir() + File.separator + queueFileName);
+	try {
+	    loadQ(new BufferedInputStream(new FileInputStream(qf)));
+	} catch (FileNotFoundException e) {
+
+	} catch (IOException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	    qf.delete();
+	} catch (ClassNotFoundException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	    qf.delete();
+	} catch (InstantiationException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	    qf.delete();
+	}
+    }
+
+    /**
+     * Called by jDCBot or MultiHubsAdapter
+     * on terminate().
+     * <p>
+     * This will call {@link #stopQueueProcessThread()}
+     * and save the download queue to a file.
+     */
+    public void close() {
+	stopQueueProcessThread();
+	try {
+	    saveQ(new BufferedOutputStream(new FileOutputStream(boi.getMiscDir() + File.separator + queueFileName)));
+	} catch (FileNotFoundException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	} catch (IOException e) {
+	    e.printStackTrace(GlobalObjects.log);
+	}
+    }
+
+    /**
+     * Called by jDCBot or MultiHubsAdapter on
+     * setDownloadManager().
+     * <p>
+     * Starts new thread that processes and the download
+     * queue and searches the hub for more sources.
+     */
+    synchronized public void startNewQueueProcessThread() {
+	if (th != null) {
 	    GlobalObjects.log.println("DownloadCentral.QueueProcess Thread already running.");
 	} else {
-	    th = new Thread(this, "DownloadCentral.QueueProcess Thread");
+	    th = new Thread(this, "DownloadCentral Queue Processing Thread");
 	    run = true;
+	    supressSearch = true;
 	    th.start();
 	}
     }
 
-    public void stopQueueProcessThread() {
+    synchronized public void stopQueueProcessThread() {
 	run = false;
+	if (th != null)
+	    th.interrupt();
 	th = null;
     }
 
-    void triggerProcessQ() {
+    synchronized void triggerProcessQ(boolean supressSearch) {
+	this.supressSearch = supressSearch;
 	if (th != null && run)
 	    th.interrupt();
     }
 
     public void setTransferRate(double rate) {
 	transferRate = rate;
-	for (Download d : toDownload) {
-	    if (d.due.os() instanceof OutputEntityStream) {
-		OutputEntityStream oes = (OutputEntityStream) d.due.os();
-		oes.setTransferLimit(rate);
+	synchronized (toDownload) {
+	    for (Download d : toDownload) {
+		if (d.due.os() != null && d.due.os() instanceof OutputEntityStream) {
+		    OutputEntityStream oes = (OutputEntityStream) d.due.os();
+		    oes.setTransferLimit(rate);
+		}
 	    }
 	}
-
     }
 
+    /**
+     * @return The transfer rate limit that
+     * has been set by you. A value of
+     * &lt;=0 means no limit has been
+     * specified. To know the download
+     * speed of any particular download
+     * see {@link #getDownloadSpeed(String)}.
+     */
     public double getTransferRate() {
 	return transferRate;
     }
 
+    /**
+     * @param file The file or file's TTH about which
+     * you want to query about. It is the same as you
+     * used when calling
+     * {@link #download(String, boolean, long, File, User) download()}.
+     * @return Variuos statistics about the download, like its
+     * state in queue (running or queued), etc. null is
+     * returned if no such <i>file</i> is found.
+     */
+    public DownloadQEntry getStats(String file) {
+	Download d = getDownloadByFilename(file);
+	if (d != null)
+	    return new DownloadQEntry(d);
+	return null;
+    }
+
+    /**
+     * @param file The file or file's TTH about which
+     * you want to query about. It is the same as you
+     * used when calling
+     * {@link #download(String, boolean, long, File, User) download()}.
+     * @return Download speed in bytes/second. Returns -1
+     * if no such <i>file</i> is found.
+     */
+    public double getDownloadSpeed(String file) {
+	Download d = getDownloadByFilename(file);
+	if (d != null)
+	    if (d.due.os() instanceof OutputEntityStream)
+		((OutputEntityStream) d.due.os()).getTransferRate();
+	return -1;
+    }
+
+    /**
+     * @param file The file or file's TTH about which
+     * you want to query about. It is the same as you
+     * used when calling
+     * {@link #download(String, boolean, long, File, User) download()}.
+     * @return The overall percentage completion of download. Returns -1
+     * if no such <i>file</i> is found.
+     */
+    public double getDownloadPercentageCompletion(String file) {
+	Download d = getDownloadByFilename(file);
+	if (d != null)
+	    if (d.due.os() instanceof OutputEntityStream) {
+		double pc = ((OutputEntityStream) d.due.os()).getPercentageCompletion();
+		if (d.due.len() == d.totalLen)
+		    return pc;
+		else
+		    return (pc * d.due.len() + d.due.start() * 100) / d.totalLen;
+	    }
+	return -1;
+    }
+
+    /**
+     * @param file The file or file's TTH about which
+     * you want to query about. It is the same as you
+     * used when calling
+     * {@link #download(String, boolean, long, File, User) download()}.
+     * @return Tentative time remaining to complete the download.
+     * Returns -1 if no such <i>file</i> is found or it can't be
+     * calculated.
+     */
+    public double getDownloadTimeRemaining(String file) {
+	Download d = getDownloadByFilename(file);
+	if (d != null)
+	    if (d.due.os() instanceof OutputEntityStream)
+		((OutputEntityStream) d.due.os()).getTimeRemaining();
+	return -1;
+    }
+
+    private Download getDownloadByFilename(String file) {
+	synchronized (toDownload) {
+	    for (Download d : toDownload)
+		if (d.due.file().equals(file))
+		    return d;
+	}
+	return null;
+    }
+
     public synchronized void download(String file, boolean isHash, long len, File saveto, User u) throws BotException,
 	    FileNotFoundException {
-	Download dwn = new Download();
+	Download dwn = new Download(this);
 	dwn.totalLen = len;
 	dwn.isHash = isHash;
-	dwn.temp = new File(incompleteDir + File.separator + String.valueOf(System.currentTimeMillis()) + file);
+	dwn.temp = String.valueOf(System.currentTimeMillis()) + file;
 
-	OutputEntityStream dos = new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(dwn.temp)));
+	OutputEntityStream dos = new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(dwn.getTempPath())));
 	dos.setTransferLimit(transferRate);
 	dos.setTotalStreamLength(len);
 
@@ -145,26 +285,41 @@ public class DownloadCentral implements Serializable, Runnable {
 	    dwn.due.setSetting(DUEntity.AUTO_PREFIX_TTH_SETTING);
 
 	dwn.saveto = saveto;
-	dwn.addSrc(new Src(u));
+	if (u != null)
+	    dwn.addSrc(new Src(u, boi));
 
-	if (!toDownload.contains(dwn)) {
-	    toDownload.add(dwn);
-	    processQ();
+	synchronized (toDownload) {
+	    int pos = toDownload.indexOf(dwn);
+	    if (pos == -1) {
+		toDownload.add(dwn);
+		search(dwn);
+	    } else {
+		if (u != null)
+		    toDownload.get(pos).addSrc(new Src(u, boi));
+		search(toDownload.get(pos));
+	    }
 	}
+	if (u != null)
+	    triggerProcessQ(true);
+	else
+	    triggerProcessQ(false);
     }
 
     private synchronized void processQ() {
 	for (Download d : toDownload) {
 	    if (d.state == State.QUEUED) {
-		File t = d.temp;
+		File t = new File(d.getTempPath());
 		if (t.exists()) {
 		    d.due.start(t.length());
 		    d.due.len(d.totalLen - t.length());
+		    if (d.due.os() instanceof OutputEntityStream)
+			((OutputEntityStream) d.due.os()).setTotalStreamLength(d.due.len());
 		}
 		do {
 		    User u = d.getNextUser();
 		    if (u != null) {
 			try {
+			    d.downloadingFrom = u;
 			    u.download(d.due);
 			    break;
 			} catch (BotException e) {
@@ -173,7 +328,7 @@ public class DownloadCentral implements Serializable, Runnable {
 					+ ")by DownloadManager. Anyway this is not serious, continuing.");
 			    else {
 				GlobalObjects.log.println("Un-recoverable exception: " + e.getMessage() + ". Removing this source.");
-				d.removeSrc(new Src(u));
+				d.removeSrc(new Src(u, boi));
 			    }
 			}
 		    }
@@ -185,30 +340,54 @@ public class DownloadCentral implements Serializable, Runnable {
     public void run() {
 	while (run) {
 	    processQ();
-	    for (Download d : toDownload)
-		search(d);
+	    if (!supressSearch)
+		synchronized (toDownload) {
+		    for (Download d : toDownload)
+			search(d);
+		}
+	    else
+		supressSearch = false;
 	    try {
-		Thread.sleep(2 * 60 * 1000); //25 mins
+		Thread.sleep(25 * 60 * 1000); //25 mins
 	    } catch (InterruptedException e) {}
 	}
+	th = null;
     }
 
-    synchronized void onDownloadStart(DUEntity due, User u) {
+    /**
+     * 
+     * @param file
+     * @return true when download has been successfully
+     * cancelled, else false is returned.
+     */
+    synchronized public boolean cancelDownload(String file) {
+	Download d = getDownloadByFilename(file);
+	if (d == null)
+	    return false;
+	else if (d.downloadingFrom == null)
+	    return false;
+	else
+	    d.downloadingFrom.cancelDownload(d.due);
+	return true;
+    }
+
+    void onDownloadStart(DUEntity due, User u) {
 	Download d = getDforDUE(due);
 	//d should never be null here.
 	d.state = State.RUNNING;
     }
 
-    synchronized BotException onDownloadFinished(User user, DUEntity due, boolean success, BotException e) {
+    BotException onDownloadFinished(User user, DUEntity due, boolean success, BotException e) {
 	Download d = getDforDUE(due);
 	//d should never be null here
 	if (success) {
 	    toDownload.remove(d);
 	    try {
-		moveFile(d.temp, d.saveto);
+		moveFile(new File(d.getTempPath()), d.saveto);
 	    } catch (IOException e1) {
-		return new BotException("Failed to move temporary file (" + d.temp.getName() + ") to its file destination. Due to: "
-			+ e.getMessage(), BotException.Error.IO_ERROR);
+		return new BotException(
+			"Failed to move temporary file (" + d.temp + ") to its file destination. Due to: " + e.getMessage(),
+			BotException.Error.IO_ERROR);
 	    } catch (BotException e2) {
 		return e2;
 	    }
@@ -216,6 +395,9 @@ public class DownloadCentral implements Serializable, Runnable {
 	} else {
 	    if (!isRecoverableException(e.getError())) {
 		toDownload.remove(d);
+		if (!new File(d.getTempPath()).delete()) {
+		    //e = new BotException(BotException.Error.FAILED_TO_DELETE_TEMP_FILE);
+		}
 		return e;
 	    } else {
 		d.state = State.QUEUED;
@@ -225,6 +407,11 @@ public class DownloadCentral implements Serializable, Runnable {
 	}
     }
 
+    /**
+     * This method is re-entrant.
+     * @param error
+     * @return
+     */
     private boolean isRecoverableException(BotException.Error error) {
 	switch (error) {
 	    case IO_ERROR:
@@ -234,38 +421,59 @@ public class DownloadCentral implements Serializable, Runnable {
 	    case REMOTE_CLIENT_SENT_WRONG_USERNAME:
 	    case UNEXPECTED_RESPONSE:
 	    case USERNAME_NOT_FOUND:
+	    case CONNECTION_TO_REMOTE_CLIENT_FAILED:
+	    case TIMEOUT:
 		return true;
 	    default:
 		return false;
 	}
     }
 
-    private synchronized void moveFile(File src, File dest) throws IOException, BotException {
+    /**
+     * Movies a file to another directory. Actually copies <i>src</i> to
+     * <i>dest</i> by opening <i>src</i> and reading its bytes into <i>dest</i>.
+     * It then deletes the <i>src</i> file. This has been done as File.renameTo(File)
+     * doesn't always work.
+     * <p>
+     * This method is re-entrant.
+     * 
+     * @param src
+     * @param dest
+     * @throws IOException
+     * @throws BotException
+     */
+    private void moveFile(File src, File dest) throws IOException, BotException {
 	BufferedInputStream in = new BufferedInputStream(new FileInputStream(src));
 	BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(dest));
-	byte b[] = new byte[1024];
+	byte b[] = new byte[42 * 1024];
 	int c;
 	while ((c = in.read(b)) != -1) {
 	    out.write(b, 0, c);
 	}
 	in.close();
 	out.close();
-	/*TODO remove the comment tags later.
-	 * if(!src.delete()){
-	 throw new BotException(BotException.Error.FAILED_TO_DELETE_TEMP_FILE);
-	 }*/
+
+	if (!src.delete()) {
+	    throw new BotException(src.getAbsolutePath(), BotException.Error.FAILED_TO_DELETE_TEMP_FILE);
+	}
     }
 
-    private synchronized Download getDforDUE(DUEntity due) {
-	for (Download d : toDownload)
-	    if (d.due.equals(due))
-		return d;
+    private Download getDforDUE(DUEntity due) {
+	synchronized (toDownload) {
+	    for (Download d : toDownload)
+		if (d.due.equals(due))
+		    return d;
+	}
 	return null;
     }
 
     private void search(Download d) {
 	if (!d.isHash)
 	    return;
+
+	if (lastSearchTime != -1 && System.currentTimeMillis() - lastSearchTime < timeBetweenSearches)
+	    return;
+	lastSearchTime = System.currentTimeMillis();
 
 	DUEntity due = d.due;
 
@@ -289,114 +497,149 @@ public class DownloadCentral implements Serializable, Runnable {
     synchronized void searchResult(String tth, User u) {
 	if (u == null || tth.equals(""))
 	    return;
-	for (Download d : toDownload) {
-	    DUEntity due = d.due;
-	    if (d.isHash && due.file().equals(tth)) {
-		if (!d.srcs.contains(u))
-		    d.addSrc(new Src(u));
+	if (tth.startsWith("TTH:"))
+	    tth = tth.substring(4);
+
+	synchronized (toDownload) {
+	    for (Download d : toDownload) {
+		String file = d.due.file();
+		if (file.startsWith("TTH/"))
+		    file = file.substring(4);
+		if (d.isHash && file.equalsIgnoreCase(tth)) {
+		    d.addSrc(new Src(u, boi));
+		    triggerProcessQ(true);
+		    break;
+		}
 	    }
 	}
     }
 
     /**
-     * Saves DownloadCentral and the download queue to the given
+     * Saves DownloadCentral's download queue to the given
      * OutputStream. The OutputStream will most probably be
      * FileOutputStream.
      * @param out The stream to which this should be saved.
-     * @param object The DownloadCentral object to save.
      * @throws IOException Ths is thrown if there is any error while writng to the stream.
      */
-    public static void saveObjectToStream(OutputStream out, DownloadCentral object) throws IOException {
+    public void saveQ(OutputStream out) throws IOException {
 	ObjectOutputStream obj_out = new ObjectOutputStream(out);
-	obj_out.writeObject(object);
+	synchronized (toDownload) {
+	    obj_out.writeObject(new DownloadQ(toDownload));
+	}
 	obj_out.close();
     }
 
     /**
-     * Reads DownloadCentral and the download queue from the given
+     * Reads DownloadCentral's download queue from the given
      * InputStream. The InputStream will most probably be FileInputStream.<br>
      * <p>
-     * <b>Note:</b> Donot forget to call:-
-     * <ol>
-     * <li>setDirs(String)</li>
-     * <li>startNewQueueProcessThread()</li>
-     * </ol>
-     * in the order shown above.
+     * <b>Note:</b> Donot forget to call {@link #setDirs(String)} <u>before</u>
+     * calling this method, and <u>after</u> this method call {@link #startNewQueueProcessThread()}.
+     * 
      * @param in The stream from which to read.
-     * @param boi The reference to jDCBot or MultiHubsAdapter (when running multiple hubs support is needed).
-     * @return A new instance of DownloadCentral initialized form the data read from the stream.
      * @throws IOException Thrown when error occurs while reading form the stream.
      * @throws ClassNotFoundException Class of a serialized object cannot be found.
      * @throws InstantiationException The read object is not instance of DownloadCentral.
      */
-    public static DownloadCentral readObjectFromStream(InputStream in, BotInterface boi) throws IOException, ClassNotFoundException,
-	    InstantiationException {
+    public void loadQ(InputStream in) throws IOException, ClassNotFoundException, InstantiationException {
 	ObjectInputStream obj_in = new ObjectInputStream(in);
 	Object obj = obj_in.readObject();
 	obj_in.close();
-	if (obj instanceof DownloadCentral) {
-	    // Cast object to a DownloadCentral
-	    DownloadCentral dc = (DownloadCentral) obj;
-	    dc.boi = boi;
-	    dc.run = false;
-	    dc.th = null;
-	    for (Download d : dc.toDownload) {
-		d.reset();
+	if (obj instanceof DownloadQ) {
+	    // Cast object to a DownloadQ
+	    List<Download> dq = ((DownloadQ) obj).dq;
+	    for (Download d : dq) {
+		d.reset(this);
 	    }
-	    return dc;
+	    synchronized (toDownload) {
+		toDownload = dq;
+	    }
 	} else
-	    throw new InstantiationException("The object read is not instance of DownloadCentral.");
+	    throw new InstantiationException("The object read is not instance of DownloadCentral.DownloadQ.");
     }
 
-    private class Download implements Serializable {
-	private static final long serialVersionUID = 3738152622537290995L;
-	private final int HASH_CONST = 61;
+    //*****Private Classes******************/
+    static class DownloadQ implements Serializable {
+	private static final long serialVersionUID = -4991107691439831048L;
+	List<Download> dq = null;
 
-	public File temp = null;
+	DownloadQ(List<Download> dq) {
+	    this.dq = dq;
+	}
+    }
+
+    static class Download implements Serializable {
+	private static final long serialVersionUID = 3738152622537290995L;
+	private static final int HASH_CONST = 61;
+
+	public String temp = null;
 	public DUEntity due = null;
+	transient public User downloadingFrom = null;
 	public boolean isHash = false;
 	public long totalLen = 0;
 	public File saveto = null;
 	public State state = State.QUEUED;
 
-	private Vector<Src> srcs = new Vector<Src>();
+	private List<Src> srcs = Collections.synchronizedList(new ArrayList<Src>());
 	transient private int curr_src = -1;
-	transient private boolean isAllSrcsTried = false;
+	transient volatile private boolean isAllSrcsTried = false;
 
-	public synchronized void addSrc(Src s) {
-	    if (!srcs.contains(s))
-		srcs.add(s);
+	transient DownloadCentral dc = null;
+
+	Download(DownloadCentral dc) {
+	    this.dc = dc;
 	}
 
-	public synchronized boolean removeSrc(Src s) {
-	    int in = srcs.indexOf(s);
-	    if (in == -1)
-		return false;
+	public String getTempPath() {
+	    return dc.incompleteDir + File.separator + temp;
+	}
 
-	    if (curr_src >= in)
-		curr_src--;
-	    if (curr_src < 0)
-		curr_src = srcs.size() - 1;
+	public synchronized void addSrc(Src s) {
+	    synchronized (srcs) {
+		if (!srcs.contains(s))
+		    srcs.add(s);
+	    }
+	}
+
+	public List<Src> getAllSrcs() {
+	    synchronized (srcs) {
+		return new ArrayList<Src>(srcs);
+	    }
+	}
+
+	public boolean removeSrc(Src s) {
+	    synchronized (srcs) {
+		int in = srcs.indexOf(s);
+		if (in == -1)
+		    return false;
+
+		if (curr_src >= in)
+		    curr_src--;
+		if (curr_src < 0)
+		    curr_src = srcs.size() - 1;
+	    }
 	    return true;
 	}
 
-	public synchronized User getNextUser() {
-	    if (srcs.size() == 0)
-		return null;
-	    curr_src++;
-	    if (curr_src >= srcs.size())
-		curr_src = 0;
+	public User getNextUser() {
+	    synchronized (srcs) {
+		if (srcs.size() == 0)
+		    return null;
+		curr_src++;
+		if (curr_src >= srcs.size())
+		    curr_src = 0;
 
-	    if (curr_src == srcs.size() - 1)
-		isAllSrcsTried = true;
-	    return srcs.get(curr_src).getUser();
+		if (curr_src == srcs.size() - 1)
+		    isAllSrcsTried = true;
+		return srcs.get(curr_src).getUser();
+	    }
 	}
 
 	public boolean hasAnySrc() {
 	    return srcs.size() != 0;
 	}
 
-	public synchronized boolean isAllSrcsTried() {
+	public boolean isAllSrcsTried() {
 	    boolean flag = isAllSrcsTried;
 	    isAllSrcsTried = false;
 	    return srcs.size() == 0 ? true : flag;
@@ -406,11 +649,34 @@ public class DownloadCentral implements Serializable, Runnable {
 	    curr_src = -1;
 	}
 
-	public void reset() {
+	synchronized public void reset(DownloadCentral Dc) {
+	    dc = Dc;
+
 	    curr_src = -1;
 	    isAllSrcsTried = false;
-	    for (Src s : srcs)
-		s.reset();
+	    downloadingFrom = null;
+	    state = State.QUEUED;
+	    OutputEntityStream dos;
+	    try {
+		File t = new File(getTempPath());
+		if (t.exists()) {
+		    due.start(t.length());
+		    due.len(totalLen - t.length());
+		} else {
+		    due.start(0);
+		    due.len(totalLen);
+		}
+		dos = new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(t, true)));
+		dos.setTransferLimit(dc.transferRate);
+		dos.setTotalStreamLength(due.len());
+		due.os(dos);
+	    } catch (FileNotFoundException e) {
+		e.printStackTrace(GlobalObjects.log);
+	    }
+	    synchronized (srcs) {
+		for (Src s : srcs)
+		    s.reset(dc.boi);
+	    }
 	}
 
 	public boolean equals(Object o) {
@@ -434,42 +700,86 @@ public class DownloadCentral implements Serializable, Runnable {
 	}
     }
 
-    private class Src implements Serializable {
+    static class Src implements Serializable {
 	private static final long serialVersionUID = 2442400319508792562L;
-	private final int HASH_CONST = 71;
+	private static final int HASH_CONST = 71;
 
 	transient private User user;
 	private String CID;
+	private String username;
 
-	public Src() {}
+	transient BotInterface boi;
 
-	public Src(User u) {
-	    user = u;
+	public Src(BotInterface Boi) {
+	    boi = Boi;
 	}
 
-	public Src(String cid) {
+	public Src(User u, BotInterface Boi) {
+	    user = u;
+	    boi = Boi;
+	    if (user != null) {
+		CID = user.getClientID();
+		username = user.username();
+	    }
+	}
+
+	public Src(String cid, BotInterface Boi) {
 	    CID = cid;
+	    boi = Boi;
+	    user = boi.getUserByCID(CID);
+	    if (user != null)
+		username = user.username();
 	}
 
 	public User getUser() {
-	    user = user == null ? boi.getUserByCID(CID) : user;
+	    if (user == null)
+		user = boi.getUserByCID(CID);
+	    if (user == null)
+		user = boi.getUser(username);
 	    return user;
 	}
 
 	public void setUser(User u) {
 	    user = u;
-	    if (user == null)
+	    if (user != null) {
 		CID = user.getClientID();
+		username = user.username();
+	    }
 	}
 
 	public void setUser(String cid) {
 	    CID = cid;
+	    user = boi.getUserByCID(CID);
+	    if (user != null)
+		username = user.username();
 	}
 
-	public void reset() {
-	    user = null;
-	    if (boi != null)
-		user = boi.getUserByCID(CID);
+	synchronized public void reset(BotInterface Boi) {
+	    boi = Boi;
+
+	    user = boi.getUserByCID(CID);
+	    if (user == null && boi != null) {
+		if (boi instanceof MultiHubsAdapter) {
+		    for (User u : ((MultiHubsAdapter) boi).getUsers(username))
+			try {
+			    boi.getShareManager().downloadOthersFileList(u);
+			} catch (BotException e) {
+			    e.printStackTrace(GlobalObjects.log);
+			}
+		} else {
+		    User u = ((jDCBot) boi).getUser(username);
+		    if (u != null)
+			try {
+			    boi.getShareManager().downloadOthersFileList(u);
+			} catch (BotException e) {
+			    e.printStackTrace(GlobalObjects.log);
+			}
+		}
+	    }
+	}
+
+	public String getCID() {
+	    return CID;
 	}
 
 	public boolean equals(Object o) {
@@ -490,7 +800,7 @@ public class DownloadCentral implements Serializable, Runnable {
 	}
 
 	public String toString() {
-	    return user != null ? user.username() : "" + " " + CID;
+	    return (user != null ? user.username() + " " : "") + CID;
 	}
     }
 }

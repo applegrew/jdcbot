@@ -89,12 +89,27 @@ public abstract class ProgressMeter {
 	return (progress / ((double) total)) * 100;
     }
 
+    /**
+     * @return The rate of transfer in units/second.
+     */
     public double getRate() {
 	long diff = System.currentTimeMillis() - startTime;
 	if (diff < 1000)
 	    return 1;
 	else
 	    return progress / (((double) (diff)) / 1000);
+    }
+
+    /**
+     * @since 1.0
+     * @return The time remaining for the
+     * completion of task in seconds.
+     */
+    public double getTimeRemaining() {
+	if (total == 0)
+	    return -1;
+
+	return (total - progress) / getRate();
     }
 
 }

@@ -19,13 +19,21 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.SocketException;
-import java.util.Vector;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+
+import javax.imageio.IIOException;
 
 import org.elite.jdcbot.shareframework.SearchSet;
 import org.elite.jdcbot.shareframework.ShareManager;
@@ -36,6 +44,15 @@ import org.elite.jdcbot.shareframework.ShareManager;
  * hubs. This will handle the intricacies of creation of
  * different jDCBot instances for handling a hub and
  * synchronizing them.
+ * <p>
+ * <b>Note:</b> Whenever a method in this class has
+ * a name similar to a method in jDCBot then always use the
+ * method of this class, else proper synchronizations may
+ * not possible. There are some similar named methods for which
+ * this rule can be safely ignored, but they explicitly metion
+ * this, hence look in their doc comment.
+ * <p>
+ * This class is thread safe.
  *
  * @author AppleGrew
  * @since 1.0
@@ -43,7 +60,7 @@ import org.elite.jdcbot.shareframework.ShareManager;
  */
 public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
     private String _botname, _password;
-    protected String _description, _conn_type, _email, _sharesize, _hubname;
+    protected String _description, _conn_type, _email, _sharesize;
     protected boolean _passive;
     protected int _udp_port;
     protected String _botIP;
@@ -57,13 +74,24 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 
     protected PrintStream log;
 
+    protected String miscDir;
+    protected String incompleteDir;
+
     protected ShareManager shareManager;
+    protected DownloadCentral downloadCentral = null;
     private UDPInputThread _udp_inputThread = null;
-    protected Vector<jDCBot> bots;
-    protected ReentrantLock lock; //Used to synchronized some process like when initConnectToMe is called.
+
+    protected List<jDCBot> bots;
+    protected Map<String, Hub> hubMap = null;
+    /**
+     * Used to synchronized some process like when initConnectToMe is called.
+     */
+    protected ReentrantLock lock;
 
     /**
-     * 
+     * Creates a new instance of MultiHubsAdapter. There should always be only instance of
+     * this class. For explanation of the parameters see
+     * {@link jDCBot#jDCBot(String, String, int, int, String, String, String, String, String, int, int, boolean, PrintStream) jDCBot Constrcutor}.
      * @param botname
      * @param botIP
      * @param listenPort
@@ -72,8 +100,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
      * @param description
      * @param conn_type
      * @param email
-     * @param sharesize Set this to null if you want share size should be automatically calculated.
-     * <b>Note:</b> This is computationally expensive.
+     * @param sharesize
      * @param uploadSlots
      * @param downloadSlots
      * @param passive
@@ -83,10 +110,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) {
 	_botname = botname;
 	_password = password;
-	// remove this and put
-	// _description=description;
-	// if you don't hub doesn't require standard description
-	_description = description + "<++ V:0.668,M:" + (passive ? 'P' : 'A') + ",H:1/0/0,S:" + uploadSlots + ">";
+	_description = description;
 	_conn_type = conn_type;
 	_email = email;
 	_sharesize = sharesize;
@@ -100,11 +124,12 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 
 	GlobalObjects.log = log;
 	lock = new ReentrantLock();
-	bots = new Vector<jDCBot>();
-	shareManager = new ShareManager();
+	bots = Collections.synchronizedList(new ArrayList<jDCBot>(6));
+	hubMap = Collections.synchronizedMap(new HashMap<String, Hub>(6));
+	shareManager = null;
 
-	if (_sharesize == null)
-	    _sharesize = String.valueOf(shareManager.getOwnShareSize(false));
+	if (_sharesize == null || _sharesize.isEmpty())
+	    _sharesize = "0";
 
 	try {
 	    socketServer = new ServerSocket(_listenPort);
@@ -118,22 +143,152 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	initiateUDPListening();
     }
 
-    public Vector<jDCBot> getAllBots() {
-	return new Vector<jDCBot>(bots);
+    /**
+     * <b>Note:</b> The given directories' must exist and should be empty, as
+     * already existing files in them will overwritten without warning.
+     * @param path2DirForMiscData In this directory own file list, hash data, etc. will be kept.
+     * @param path2IncompleteDir Where incomplete downloads will be kept.
+     * @throws FileNotFoundException If the directory paths are not found or 'fileListHash'
+     * doesn't exist.
+     * @throws IIOException If the given path are not directories.
+     * @throws InstantiationException The read object from 'fileListHash' is not instance of FLDir.
+     * @throws ClassNotFoundException Class of FLDir serialized object cannot be found.
+     * @throws IOException Error occured while reading from 'fileListHash'.
+     */
+    public void setDirs(String path2DirForMiscData, String path2IncompleteDir) throws IIOException, FileNotFoundException, IOException {
+	File miscDir = new File(path2DirForMiscData);
+	File incompleteDir = new File(path2IncompleteDir);
+	if (!miscDir.exists() || !incompleteDir.exists())
+	    throw new FileNotFoundException();
+	if (!miscDir.isDirectory())
+	    throw new IIOException("Given path '" + path2DirForMiscData + "' is not a directory.");
+	if (!incompleteDir.isDirectory())
+	    throw new IIOException("Given path '" + path2IncompleteDir + "' is not a directory.");
+
+	this.miscDir = miscDir.getCanonicalPath();
+	this.incompleteDir = incompleteDir.getCanonicalPath();
+
+	for (jDCBot bot : bots) {
+	    bot.miscDir = this.miscDir;
+	    bot.incompleteDir = this.incompleteDir;
+	}
+    }
+
+    public String getMiscDir() {
+	return miscDir;
+    }
+
+    public String getIncompleteDir() {
+	return incompleteDir;
+    }
+
+    public List<jDCBot> getAllBots() {
+	synchronized (bots) {
+	    return new ArrayList<jDCBot>(bots);
+	}
+    }
+
+    public jDCBot getBot(String hubSignature) {
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		if (bot.getHubSignature().equals(hubSignature))
+		    return bot;
+	}
+	return null;
+    }
+
+    /**
+     * Sets the mapping of hub signature to
+     * Hub. This allows you to specify different
+     * settings for certain values (like user name,
+     * passowrd, active/passive mode, etc.) for
+     * different hubs.
+     * @param hubSettings List of Hub settings.
+     */
+    public void setHubMaps(List<Hub> hubSettings) {
+	for (Hub hub : hubSettings)
+	    hubMap.put(hub.getHubSignature(), hub);
     }
 
     public ShareManager getShareManager() {
 	return shareManager;
     }
 
+    /**
+     * <b>Note:</b> <u>Always</u> call {@link #setDirs(String, String)}
+     * before calling this method else you will get all sorts of nasty
+     * exceptions like NullPointerException, etc. and ShareManager
+     * will seem to be not working at all.
+     * @param sm
+     */
+    public void setShareManager(ShareManager sm) {
+	synchronized (shareManager) {
+	    shareManager = sm;
+	    shareManager.setDirs(miscDir);
+	    shareManager.init();
+	    _sharesize = String.valueOf(shareManager.getOwnShareSize(false));
+	    synchronized (bots) {
+		for (jDCBot bot : bots) {
+		    bot.shareManager = shareManager;
+		    bot._sharesize = _sharesize;
+		}
+	    }
+	}
+    }
+
+    public DownloadCentral getDownloadCentral() {
+	return downloadCentral;
+    }
+
+    /**
+     * <b>Note:</b> <u>Always</u> call {@link #setDirs(String, String)}
+     * before calling this method else you will get all sorts of nasty
+     * exceptions like NullPointerException, etc. and DownloadCentral
+     * will seem to be not working at all.
+     * @param dc 
+     */
+    public void setDownloadCentral(DownloadCentral dc) {
+	synchronized (downloadCentral) {
+	    downloadCentral = dc;
+	    synchronized (bots) {
+		for (jDCBot bot : bots)
+		    bot.setDownloadCentral(downloadCentral);
+	    }
+	}
+    }
+
+    public void updateShareSize() {
+	String sharesize = String.valueOf(shareManager.getOwnShareSize(false));
+	if (sharesize.equals(_sharesize))
+	    return;
+
+	_sharesize = sharesize;
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		try {
+		    bot.sendMyINFO();
+		} catch (IOException e) {
+		    e.printStackTrace(log);
+		}
+	}
+    }
+
     public void terminate() {
 	for (jDCBot bot : bots)
 	    bot.terminate();
+	if (_udp_inputThread != null)
+	    _udp_inputThread.stop();
+	if (shareManager != null)
+	    shareManager.close();
+	if (downloadCentral != null)
+	    downloadCentral.close();
     }
 
     public void handleUDPCommand(String rawCommand, String ip, int port) {
-	for (jDCBot bot : bots)
-	    bot.handleUDPCommand(rawCommand, ip, port);
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		bot.handleUDPCommand(rawCommand, ip, port);
+	}
     }
 
     public void onUDPExceptionClose(IOException e) {
@@ -141,7 +296,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	initiateUDPListening();
     }
 
-    private void initiateUDPListening() {
+    synchronized private void initiateUDPListening() {
 	if (_udp_inputThread != null && !_udp_inputThread.isClosed())
 	    return;
 
@@ -155,43 +310,303 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	_udp_inputThread.start();
     }
 
+    /**
+     * Searches all the hubs for the given term.
+     * <p>
+     * If you want to search in only some specific
+     * hubs the you can safely call the Search()
+     * methods of appropriate jDCBot.
+     * @param ss
+     * @throws IOException
+     */
     public void Search(SearchSet ss) throws IOException {
-    // TODO Auto-generated method stub
-
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		bot.Search(ss);
+	}
     }
 
+    /**
+     * You can safely use jDCBot's
+     * UserExist() if you need.
+     */
     public boolean UserExist(String user) {
-	// TODO Auto-generated method stub
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		if (bot.UserExist(user))
+		    return true;
+	}
 	return false;
     }
 
+    /**
+     * You can safely use jDCBot's
+     * getBotClientProtoSupports() if you need.
+     */
     public String getBotClientProtoSupports() {
-	// TODO Auto-generated method stub
-	return null;
+	return jDCBot._clientproto_supports;
+    }
+
+    /**
+     * You can safely use jDCBot's
+     * getBotHubProtoSupports() if you need.
+     */
+    public String getBotHubProtoSupports() {
+	return jDCBot._hubproto_supports;
     }
 
     public int getMaxDownloadSlots() {
-	// TODO Auto-generated method stub
-	return 0;
+	return _maxDownloadSlots;
     }
 
+    public void setMaxDownloadSlots(int slots) {
+	_maxDownloadSlots = slots;
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		bot.setMaxDownloadSlots(slots);
+	}
+    }
+
+    public int getMaxUploadSlots() {
+	return _maxUploadSlots;
+    }
+
+    public void setMaxUploadSlots(int slots) {
+	_maxUploadSlots = slots;
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		bot.setMaxUploadSlots(slots);
+	}
+    }
+
+    /**
+     * @return User with the matching client ID. If none found then it is null.
+     */
     public User getUserByCID(String cid) {
-	// TODO Auto-generated method stub
+	synchronized (bots) {
+	    for (jDCBot bot : bots) {
+		User u = bot.getUserByCID(cid);
+		if (u != null)
+		    return u;
+	    }
+	}
 	return null;
     }
 
-    public boolean isPassive() {
-	// TODO Auto-generated method stub
-	return false;
+    /**
+     * This is a powerful method of locating users from different hubs
+     * who are actually the same inspite of having different usernames.
+     * Note that having same IP doesn't mean that two users are the
+     * same. Also note that user may run multiple clients in which
+     * case the CID may very well be different. Also to know the
+     * CID you need to download client's file list first.
+     * 
+     * @param cid
+     * @return null is never returned.
+     */
+    public List<User> getUsersByCID(String cid) {
+	List<User> users = new ArrayList<User>();
+	synchronized (bots) {
+	    for (jDCBot bot : bots) {
+		User u = bot.getUserByCID(cid);
+		if (u != null)
+		    users.add(u);
+	    }
+	}
+	return users;
     }
 
-    public String getBotName(jDCBot bot) {
-	// TODO Based on bot return the customized name (if confiburede such).
+    /**
+     * You can safely use jDCBot's
+     * botname() if you need.
+     * @return
+     */
+    public String botname() {
 	return _botname;
     }
 
-    public String getPassword(jDCBot bot) {
-	// TODO Based on bot return the customized name (if confiburede such).
+    protected String botname(jDCBot bot) {
+	Hub h;
+	synchronized (hubMap) {
+	    if (hubMap != null && (h = hubMap.get(bot.getHubSignature())) != null) {
+		h.username = h.username.trim();
+		return h.username == null || h.username.isEmpty() ? _botname : h.username;
+	    }
+	}
+	return _botname;
+    }
+
+    protected String getPassword(jDCBot bot) {
+	Hub h;
+	synchronized (hubMap) {
+	    if (hubMap != null && (h = hubMap.get(bot.getHubSignature())) != null) {
+		return h.password;
+	    }
+	}
 	return _password;
+    }
+
+    protected String getDescription(jDCBot bot) {
+	Hub h;
+	synchronized (hubMap) {
+	    if (hubMap != null && (h = hubMap.get(bot.getHubSignature())) != null) {
+		return h.description;
+	    }
+	}
+	return _description;
+    }
+
+    protected String getConnType(jDCBot bot) {
+	Hub h;
+	synchronized (hubMap) {
+	    if (hubMap != null && (h = hubMap.get(bot.getHubSignature())) != null) {
+		return h.conn_type;
+	    }
+	}
+	return _conn_type;
+    }
+
+    protected String getEmail(jDCBot bot) {
+	Hub h;
+	synchronized (hubMap) {
+	    if (hubMap != null && (h = hubMap.get(bot.getHubSignature())) != null) {
+		return h.email;
+	    }
+	}
+	return _email;
+    }
+
+    protected boolean isPassive(jDCBot bot) {
+	Hub h;
+	synchronized (hubMap) {
+	    if (hubMap != null && (h = hubMap.get(bot.getHubSignature())) != null) {
+		return h.isPassive;
+	    }
+	}
+	return _passive;
+    }
+
+    /**
+     * This will return all users
+     * from all the hubs.
+     * <p>
+     * You can safely use jDCBot's
+     * GetAllUsers() if you need.
+     * @return Array of Users.
+     */
+    public User[] GetAllUsers() {
+	List<User> users = new ArrayList<User>();
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		for (User u : bot.GetAllUsers())
+		    users.add(u);
+	}
+	return users.toArray(new User[0]);
+    }
+
+    /**
+     * Connects to a hub.
+     * @param hostname
+     * @param port
+     * @param newbot A new instance of jDCBot's sub-class. <b>Note</b>, that
+     * this sub-class must have called jDCBot's {@link jDCBot#jDCBot(MultiHubsAdapter)}
+     * constructor with this class instance being passed as argument.
+     * @throws IOException
+     * @throws BotException Various exceptions are thrown when error occurs during connecting.
+     * If we are already connected to this hub then BotException.Error.ALREADY_CONNECTED is
+     * thrown.
+     */
+    public void connect(String hostname, int port, jDCBot newbot) throws IOException, BotException {
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		if (Hub.prepareHubSignature(hostname, port).equals(bot.getHubSignature()))
+		    throw new BotException(BotException.Error.ALREADY_CONNECTED);
+
+	    bots.add(newbot);
+	}
+	newbot.connect(hostname, port);
+    }
+
+    public int getFreeDownloadSlots() {
+	int dhCount = 0;
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		dhCount += bot.downloadManager.getAllDHCount();
+	}
+	int free = _maxDownloadSlots - dhCount;
+	return free < 0 ? 0 : free;
+    }
+
+    public int getFreeUploadSlots() {
+	int uhCount = 0;
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		uhCount += bot.uploadManager.getAllUHCount();
+	}
+	int free = _maxUploadSlots - uhCount;
+	return free < 0 ? 0 : free;
+    }
+
+    /**
+     * @param user
+     * @return Users with matching
+     * user name as <i>user</i>. Multiple hubs
+     * may contain the same user
+     * name hence a Vector list is
+     * returned. It will never be null.
+     */
+    public List<User> getUsers(String user) {
+	List<User> usrs = new ArrayList<User>();
+	synchronized (bots) {
+	    for (jDCBot bot : bots) {
+		User u = bot.getUser(user);
+		if (u != null)
+		    usrs.add(u);
+	    }
+	}
+	return usrs;
+    }
+
+    /**
+     * You can safely use jDCBot's
+     * getUser() if you need. When
+     * multiple users with same name
+     * is found (in different hubs)
+     * then arbitraly any one is
+     * returned.
+     * @param user
+     * @return null is returned if
+     * no user with this user name is
+     * found in any of the hubs.
+     */
+    public User getUser(String user) {
+	synchronized (bots) {
+	    for (jDCBot bot : bots) {
+		User u = bot.getUser(user);
+		if (u != null)
+		    return u;
+	    }
+	}
+	return null;
+    }
+
+    /**
+     * You can safely use jDCBot's
+     * isBotClientProtoSupports() if you need.
+     */
+    public boolean isBotClientProtoSupports(String feature) {
+	return jDCBot._clientproto_supports.toLowerCase().indexOf(feature.toLowerCase()) != -1;
+    }
+
+    /**
+     * You can safely use jDCBot's
+     * isBotHubProtoSupports() if you need.
+     */
+    public boolean isBotHubProtoSupports(String feature) {
+	return jDCBot._hubproto_supports.toLowerCase().indexOf(feature.toLowerCase()) != -1;
+    }
+
+    public int getTotalHubsConnectedToCount() {
+	return bots.size();
     }
 }
