@@ -102,13 +102,17 @@ public class UserManager {
 	List<String> userList = parseDoubleDollarList(user_list);
 	for (int i = 0; i < userList.size(); i++) {
 	    String user = userList.get(i);
-	    if (user.equals(_bot.botname()))
+	    if (user.equalsIgnoreCase(_bot.botname()))
 		_bot.setOp(true);
 	    else {
 		synchronized (users) {
-		    if (!userExist(user))
-			users.add(new User(user, _bot));
-		    User u = getUser(user);
+		    User u;
+		    if (!userExist(user)) {
+			u = new User(user, _bot);
+			users.add(u);
+		    } else {
+			u = getUser(user);
+		    }
 		    u.setOp(true);
 		}
 		_bot.getDispatchThread().callOnUpdateMyInfo(user);
@@ -146,7 +150,7 @@ public class UserManager {
 		User u = i.next();
 		if (u.username().equalsIgnoreCase(user)) {
 		    u.setHasQuit();
-		    users.remove(u);
+		    i.remove();
 		}
 	    }
 	}
@@ -232,7 +236,7 @@ public class UserManager {
     public User getUserByCID(String CID) {
 	synchronized (users) {
 	    for (User u : users) {
-		if (u.getClientID() != null && u.getClientID().equalsIgnoreCase(CID))
+		if (u.getClientID() != null && !u.getClientID().isEmpty() && u.getClientID().equalsIgnoreCase(CID))
 		    return u;
 	    }
 	    return null;
@@ -254,6 +258,10 @@ public class UserManager {
 	}
     }
 
+    /**
+     * @return List of all logged-in users,
+     * except the bot itself.
+     */
     public User[] getAllUsers() {
 	synchronized (users) {
 	    if (users.isEmpty())
@@ -276,7 +284,7 @@ public class UserManager {
 	    user = user + info.charAt(index);
 	    index++;
 	}
-	if (user.equals(_bot.botname()))
+	if (user.equalsIgnoreCase(_bot.botname()))
 	    return;
 
 	index++;
@@ -309,8 +317,10 @@ public class UserManager {
 	    while (i.hasNext()) {
 		User u = i.next();
 		if (u.username().equalsIgnoreCase(user)) {
-		    i.remove();
-		    users.add(new User(user, desc, conn, mail, share, _bot));
+		    //i.remove();
+		    //users.add(new User(user, desc, conn, mail, share, _bot));
+		    u.setInfo(desc, conn, mail, share);
+		    System.err.println("UM.SetInfo: " + users.toString());
 		    return;
 		}
 	    }

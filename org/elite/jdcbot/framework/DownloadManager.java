@@ -85,6 +85,9 @@ public class DownloadManager extends DCIO {
 	if (!jdcbot.UserExist(u.username()))
 	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
 
+	if (!u.hasInfo())
+	    throw new BotException(BotException.Error.USER_HAS_NO_INFO);
+
 	DownloadHandler dh;
 	synchronized (allDH) {
 	    if (!allDH.containsKey((u.username()))) {
@@ -126,8 +129,12 @@ public class DownloadManager extends DCIO {
 	if (user.equalsIgnoreCase(jdcbot._botname))
 	    throw new BotException(BotException.Error.CANNOT_DOWNLOAD_FROM_SELF);
 
-	if (!jdcbot.UserExist(user))
+	User u = jdcbot.getUser(user);
+	if (u == null)
 	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
+
+	if (!u.hasInfo())
+	    throw new BotException(BotException.Error.USER_HAS_NO_INFO);
 
 	if (jdcbot.getFreeDownloadSlots() <= 0)
 	    throw new BotException(BotException.Error.NO_FREE_DOWNLOAD_SLOTS);

@@ -153,9 +153,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
      * to put an upper cap on no. of simultaneous downloads.
      * @param passive Set this to fals if you are not behind a firewall.
      * @param outputLog <u>Almost</u> all debug messages will be printed in this.
+     * @throws IOException When error occurs trying to listen for port. The most probable reson for this would be that the port is not free.
      */
     public jDCBot(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description, String conn_type,
-	    String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) {
+	    String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) throws IOException {
 
 	init(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
 		passive, outputLog, null, null, 1);
@@ -164,8 +165,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
     /**
      * Constructs a jDCBot with the default settings. Your own constructors in classes which extend the jDCBot abstract class should be
      * responsible for changing the default settings if required.
+     * @throws IOException When error occurs trying to listen for port. The most probable reson for this would be that the port is not free.
      */
-    public jDCBot(String botIP) {
+    public jDCBot(String botIP) throws IOException {
 	init("jDCBot", botIP, 9000, 10000, "", "", "LAN(T1)" + User.NORMAL_FLAG, "", "0", 1, 3, false, System.out, null, null, 1);
     }
 
@@ -173,8 +175,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
      * Creates a new jDCBot instance which can co-exist with other jDCBot instances, all
      * sharing the shareable resources like the server sockets, etc.
      * @param multiHubsAdapter An instance of MultiHubsAdapter.
+     * @throws IOException When error occurs trying to listen for port. The most probable reson for this would be that the port is not free.
      */
-    public jDCBot(MultiHubsAdapter multiHubsAdapter) {
+    public jDCBot(MultiHubsAdapter multiHubsAdapter) throws IOException {
 	this.multiHubsAdapter = multiHubsAdapter;
 
 	init(multiHubsAdapter.botname(this), multiHubsAdapter._botIP, multiHubsAdapter._listenPort, multiHubsAdapter._udp_port,
@@ -186,7 +189,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
     private void init(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
 	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog,
-	    ShareManager share_manager, DownloadCentral dc, int totalHubsConnectedTo) {
+	    ShareManager share_manager, DownloadCentral dc, int totalHubsConnectedTo) throws IOException {
 
 	if (isInMultiHubsMode()) {
 	    miscDir = multiHubsAdapter.miscDir;
@@ -226,17 +229,11 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	    _sharesize = "0";
 
 	//Creating Listen port for clients to contact this.
-	try {
-	    if (isInMultiHubsMode())
-		socketServer = multiHubsAdapter.socketServer;
-	    if (socketServer == null || socketServer.isClosed()) {
-		socketServer = new ServerSocket(_listenPort);
-		socketServer.setSoTimeout(60000); // Wait for 60s before timing out.
-	    }
-	} catch (SocketException e) {
-	    e.printStackTrace(log);
-	} catch (IOException e) {
-	    e.printStackTrace(log);
+	if (isInMultiHubsMode())
+	    socketServer = multiHubsAdapter.socketServer;
+	if (socketServer == null || socketServer.isClosed()) {
+	    socketServer = new ServerSocket(_listenPort);
+	    socketServer.setSoTimeout(60000); // Wait for 60s before timing out.
 	}
 
 	initiateUDPListening();
@@ -413,9 +410,8 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
     /**
      * Gets all of user info
      * 
-     * @param user
-     *                Nick of the user
-     * @return User class that holds everything about specified user if he exist, null otherwise
+     * @param user Nick of the user
+     * @return User class that holds everything about specified user if he exists, null otherwise
      */
     synchronized final public User getUser(String user) {
 	if (!isConnected() || um.userExist(user) == false)
@@ -494,26 +490,21 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	_ip = socket.getInetAddress();
 
 	buffer = ReadCommand();
-	log.println(buffer);
 	String lock = parseRawCmd(buffer)[1];
 
 	if (lock.startsWith("EXTENDEDPROTOCOL")) {
 	    buffer = "$Supports " + _hubproto_supports + "|";
-	    log.println("From bot: " + buffer);
 	    SendCommand(buffer);
 	}
 
 	String key = lock2key(lock);
 	buffer = "$Key " + key + "|";
-	log.println("From bot: " + buffer);
 	SendCommand(buffer);
 
 	buffer = "$ValidateNick " + _botname + "|";
-	log.println("From bot: " + buffer);
 	SendCommand(buffer);
 
 	buffer = ReadCommand();
-	log.println(buffer);
 
 	while (buffer.startsWith("$Hello") != true) {
 	    if (buffer.startsWith("$ValidateDenide"))
@@ -523,7 +514,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 	    if (buffer.startsWith("$GetPass")) {
 		buffer = "$MyPass " + _password + "|";
-		log.println("From bot: $MyPass xxxx|");
 		SendCommand(buffer);
 	    }
 	    if (buffer.startsWith("$HubName ")) {
@@ -532,6 +522,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	    if (buffer.startsWith("$Supports ")) {
 		_hubSupports = parseCmdArgs(buffer);
 	    }
+	    if (buffer.startsWith("<")) {
+		processPublicMsg(buffer);
+	    }
 
 	    try {
 		buffer = ReadCommand();
@@ -539,26 +532,21 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		//Sends the last read command (this will usually be a message from the hub).
 		throw new BotException(e.getMessage() + ": " + buffer, BotException.Error.IO_ERROR);
 	    }
-	    log.println(buffer);
 	}
 
 	buffer = "$Version " + _protoVersion + "|";
-	log.println("From bot: " + buffer);
 	SendCommand(buffer);
 
 	buffer = "$GetNickList|";
-	log.println("From bot: " + buffer);
 	SendCommand(buffer);
 
 	sendMyINFO();
 
 	while (!(buffer = ReadCommand()).startsWith("$NickList ")) {
-	    log.println(buffer);
 	    if (!buffer.startsWith("$NickList ")) {
 		log.println("Expected $NickList but got something else. Reading on...");
 	    }
 	}
-	log.println(buffer);
 	um.addUsers(buffer.substring(10, buffer.length() - 1));
 
 	/*
@@ -573,7 +561,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
     synchronized protected void sendMyINFO() throws IOException {
 	String buffer = "$MyINFO $ALL " + _botname + " " + _description + "$ $" + _conn_type + "$" + _email + "$" + _sharesize + "$|";
-	log.println("From bot: " + buffer);
 	SendCommand(buffer);
     }
 
@@ -609,14 +596,13 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	    multiHubsAdapter.lock.lock();
 	try {
 	    buffer = "$ConnectToMe " + user + " " + _botIP + ":" + _listenPort + "|";
-	    log.println("From bot: " + buffer);
 	    SendCommand(buffer);
 
 	    newsocket = socketServer.accept();
 
 	} catch (SocketTimeoutException soce) {
-	    soce.printStackTrace(log);
-	    throw new SocketTimeoutException("Connection to client " + user + " timed out.");
+	    log.println("Connection to client " + user + " timed out.");
+	    throw soce;
 	} finally {
 	    if (isInMultiHubsMode())
 		multiHubsAdapter.lock.unlock(); //We can now safely unlock as connection has been made.
@@ -627,7 +613,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	u.setUserIP(remoteClientIP);
 
 	buffer = ReadCommand(newsocket); //Reading $MyNick remote_nick| OR $MaxedOut //remote_user == user
-	log.println(buffer);
 	if (buffer.equals("$MaxedOut|")) {
 	    throw new BotException(BotException.Error.NO_FREE_SLOTS);
 	}
@@ -638,7 +623,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	}
 
 	buffer = ReadCommand(newsocket); //Reading $Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|
-	log.println(buffer);
 	String lock = parseRawCmd(buffer)[1];
 	String key = lock2key(lock);
 
@@ -646,13 +630,11 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	    log.println("Using non-Extended protocol. What kind of old client is this. You can expect errors now.");
 
 	    buffer = "$Key " + key + "|";
-	    log.println("From bot: " + buffer);
 	    SendCommand(buffer, newsocket);
 
 	    // We are now required to send a lock to the remote client. I am
 	    // simply resending the same lock it returned, back to it.
 	    buffer = lock;
-	    log.println("From bot: " + buffer);
 	    SendCommand(buffer, newsocket);
 
 	    buffer = ReadCommand(newsocket); // Read the key sent by the
@@ -661,14 +643,11 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	    // hence I am now simply moving on to the next step without
 	    // parsing
 	    // buffer.
-	    log.println(buffer);
 
 	    buffer = "$MyNick " + _botname + "|";
-	    log.println("From bot: " + buffer);
 	    SendCommand(buffer, newsocket);
 
 	    buffer = ReadCommand(newsocket); // Reading $Direction.
-	    log.println(buffer);
 	    String read_direction = buffer.substring(buffer.indexOf(' ') + 1, buffer.indexOf(' ', buffer.indexOf(' ') + 1));
 	    if (read_direction.equalsIgnoreCase(direction)) {
 		// In this case the remote client to wants to do the same thing as this client, i.e.
@@ -679,20 +658,17 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	} else {
 	    log.println("Using Extended protocol.");
 
-	    int N1 = 0x7FFF - 2;
+	    int N1 = 0x7FFF - 2; //Cheating! Cheating! This value should be randomly generated, but here I am setting this to max possible value - 2.
 	    buffer =
 		    "$MyNick " + _botname + "|$Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|$Supports "
 			    + _clientproto_supports + "|$Direction " + direction + " " + N1 + "|$Key " + key + "|";
-	    log.println("From bot: " + buffer);
 	    SendCommand(buffer, newsocket);
 
 	    buffer = ReadCommand(newsocket);// Reading $Supports S|
-	    log.println(buffer);
 	    String remote_supports = parseCmdArgs(buffer);
 	    u.setSupports(remote_supports);
 
 	    buffer = ReadCommand(newsocket);// Reading $Direction Upload N2|
-	    log.println(buffer);
 	    String params[] = parseRawCmd(buffer);
 	    int N2 = Integer.parseInt(params[2]);
 	    if (params[1].equalsIgnoreCase(direction)) {
@@ -700,7 +676,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	    }
 
 	    buffer = ReadCommand(newsocket);// Reading $Key ........A .....0.0. 0. 0. 0. 0. 0.|
-	    log.println(buffer);
 
 	    if (N1 < N2)
 		log.println("N1 is < N2 dunno what to do now. Anyway continuing as if it never happened.");
@@ -723,11 +698,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	log.println("00>>Connected to remote Client:: " + ip + ":" + port);
 
 	String buffer = "$MyNick " + _botname + "|$Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|"; //user == remote_nick
-	log.println("From bot: " + buffer);
 	SendCommand(buffer, newsocket);
 
 	buffer = ReadCommand(newsocket); //Reading $MyNick remote_nick| OR $MaxedOut
-	log.println(buffer);
 	if (buffer.equals("$MaxedOut|")) {
 	    throw new BotException(BotException.Error.NO_FREE_SLOTS);
 	}
@@ -740,7 +713,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	u.setUserIP(ip);
 
 	buffer = ReadCommand(newsocket); //Reading $Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|
-	log.println(buffer);
 	String lock = parseRawCmd(buffer)[1];
 	String key = lock2key(lock);
 	if (!lock.startsWith("EXTENDEDPROTOCOL")) {
@@ -749,18 +721,15 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	}
 
 	buffer = ReadCommand(newsocket); //Reading $Supports S|
-	log.println(buffer);
 	String remote_supports = parseCmdArgs(buffer);
 	u.setSupports(remote_supports);
 
 	buffer = ReadCommand(newsocket); //Reading $Direction D N|
-	log.println(buffer);
 	String params[] = parseRawCmd(buffer);
 	String direction = params[1];
 	int N = Integer.parseInt(params[2]);
 
 	buffer = ReadCommand(newsocket); //Reading $Key ........A .....0.0. 0. 0. 0. 0. 0.|
-	log.println(buffer);
 
 	if (direction.equalsIgnoreCase("Upload")) {
 	    try {
@@ -930,8 +899,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
     final public void setShareManager(ShareManager sm, String sharesize) {
 	if (sm != null) {
 	    shareManager = sm;
-	    shareManager.setDirs(miscDir);
-	    shareManager.init();
+	    if (!isInMultiHubsMode()) {
+		shareManager.setDirs(miscDir);
+		shareManager.init();
+	    }
 	    _sharesize = sharesize;
 	}
     }
@@ -946,9 +917,11 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
     final public void setDownloadCentral(DownloadCentral dc) {
 	if (dc != null) {
 	    downloadCentral = dc;
-	    downloadCentral.setDirs(incompleteDir);
-	    downloadCentral.init();
-	    downloadCentral.startNewQueueProcessThread();
+	    if (!isInMultiHubsMode()) {
+		downloadCentral.setDirs(incompleteDir);
+		downloadCentral.init();
+		downloadCentral.startNewQueueProcessThread();
+	    }
 	}
     }
 
@@ -958,14 +931,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
      * @param rawCommand Raw command sent from hub
      */
     final public void handleCommand(String rawCommand) {
-	log.println("From hub: " + rawCommand);
 
 	if (rawCommand.startsWith("<")) {
-	    String user, message;
-	    user = rawCommand.substring(1, rawCommand.indexOf('>'));
-	    message = rawCommand.substring(rawCommand.indexOf('>'));
-	    message = message.substring(2, message.length() - 1);
-	    dispatchThread.callOnPublicMessage(user, unescapeSpecial(message));
+	    processPublicMsg(rawCommand);
 	} else if (rawCommand.startsWith("$Quit")) {
 	    String user = rawCommand.substring(6);
 	    user = user.substring(0, user.length() - 1);
@@ -1072,6 +1040,14 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
     }
 
+    private void processPublicMsg(String rawCommand) {
+	String user, message;
+	user = rawCommand.substring(1, rawCommand.indexOf('>'));
+	message = rawCommand.substring(rawCommand.indexOf('>'));
+	message = message.substring(2, message.length() - 1);
+	dispatchThread.callOnPublicMessage(user, unescapeSpecial(message));
+    }
+
     final public void handleUDPCommand(String rawCommand, String ip, int port) {
 	log.println("From user(" + ip + ":" + port + "): " + rawCommand);
 
@@ -1135,27 +1111,25 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	res.isDir = isDir;
 	res.TTH = isTTH ? hubORTTH.substring(4) : "";
 
-	if (ip != null)
-	    getUser(senderNick).setUserIP(ip);
+	if (ip != null) {
+	    User u = getUser(senderNick);
+	    if (u != null)
+		u.setUserIP(ip);
+	}
 
 	if (downloadCentral != null && isTTH)
 	    downloadCentral.searchResult(res.TTH, getUser(senderNick));
 	dispatchThread.callOnSearchResult(senderNick, ip, port, res, free_slots, total_slots, isTTH ? "" : hubORTTH);
     }
 
-    synchronized private void initiateUDPListening() {
+    synchronized private void initiateUDPListening() throws SocketException {
 	if (isInMultiHubsMode())
 	    return;
 
 	if (_udp_inputThread != null && !_udp_inputThread.isClosed())
 	    return;
 
-	try {
-	    udpSocket = new DatagramSocket(_udp_port);
-	} catch (SocketException e) {
-	    log.println("Failed to listen for UDP packets.");
-	    e.printStackTrace(log);
-	}
+	udpSocket = new DatagramSocket(_udp_port);
 	_udp_inputThread = new UDPInputThread(this, udpSocket);
 	_udp_inputThread.start();
     }
@@ -1229,7 +1203,12 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
      */
     public final void onUDPExceptionClose(IOException e) {
 	_udp_inputThread = null;
-	initiateUDPListening();
+	try {
+	    initiateUDPListening();
+	} catch (SocketException e1) {
+	    log.println("Failed to reopen UDP port. Searching may not work.");
+	    e1.printStackTrace(log);
+	}
     }
 
     //********Methods to send commands to the hub***********/

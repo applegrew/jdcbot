@@ -105,9 +105,11 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
      * @param downloadSlots
      * @param passive
      * @param outputLog
+     * @throws IOException 
      */
     public MultiHubsAdapter(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
-	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) {
+	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog)
+	    throws IOException {
 	_botname = botname;
 	_password = password;
 	_description = description;
@@ -131,14 +133,8 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	if (_sharesize == null || _sharesize.isEmpty())
 	    _sharesize = "0";
 
-	try {
-	    socketServer = new ServerSocket(_listenPort);
-	    socketServer.setSoTimeout(60000); // Wait for 60s before timing out.
-	} catch (SocketException e) {
-	    e.printStackTrace(log);
-	} catch (IOException e) {
-	    e.printStackTrace(log);
-	}
+	socketServer = new ServerSocket(_listenPort);
+	socketServer.setSoTimeout(60000); // Wait for 60s before timing out.
 
 	initiateUDPListening();
     }
@@ -219,19 +215,25 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
      * before calling this method else you will get all sorts of nasty
      * exceptions like NullPointerException, etc. and ShareManager
      * will seem to be not working at all.
+     * <p>
+     * It is recommended that you set the shareManager at the
+     * initiation of application and donot call this method again,
+     * ever during the lifetime of the application.
+     * 
      * @param sm
      */
     public void setShareManager(ShareManager sm) {
-	synchronized (shareManager) {
-	    shareManager = sm;
-	    shareManager.setDirs(miscDir);
-	    shareManager.init();
-	    _sharesize = String.valueOf(shareManager.getOwnShareSize(false));
-	    synchronized (bots) {
-		for (jDCBot bot : bots) {
-		    bot.shareManager = shareManager;
-		    bot._sharesize = _sharesize;
-		}
+	if (shareManager != null)
+	    shareManager.close();
+
+	shareManager = sm;
+	shareManager.setDirs(miscDir);
+	shareManager.init();
+	_sharesize = String.valueOf(shareManager.getOwnShareSize(false));
+	synchronized (bots) {
+	    for (jDCBot bot : bots) {
+		bot.shareManager = shareManager;
+		bot._sharesize = _sharesize;
 	    }
 	}
     }
@@ -245,15 +247,23 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
      * before calling this method else you will get all sorts of nasty
      * exceptions like NullPointerException, etc. and DownloadCentral
      * will seem to be not working at all.
+     * <p>
+     * It is recommended that you set the downloadManager at the
+     * initiation of application and donot call this method again,
+     * ever during the lifetime of the application.
+     * 
      * @param dc 
      */
     public void setDownloadCentral(DownloadCentral dc) {
-	synchronized (downloadCentral) {
-	    downloadCentral = dc;
-	    synchronized (bots) {
-		for (jDCBot bot : bots)
-		    bot.setDownloadCentral(downloadCentral);
-	    }
+	if (downloadCentral != null)
+	    downloadCentral.close();
+	downloadCentral = dc;
+	downloadCentral.setDirs(incompleteDir);
+	downloadCentral.init();
+	downloadCentral.startNewQueueProcessThread();
+	synchronized (bots) {
+	    for (jDCBot bot : bots)
+		bot.downloadCentral = downloadCentral;
 	}
     }
 
@@ -293,19 +303,19 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 
     public void onUDPExceptionClose(IOException e) {
 	_udp_inputThread = null;
-	initiateUDPListening();
+	try {
+	    initiateUDPListening();
+	} catch (SocketException e1) {
+	    log.println("Failed to reopen UDP port. Searching may not work.");
+	    e1.printStackTrace(log);
+	}
     }
 
-    synchronized private void initiateUDPListening() {
+    synchronized private void initiateUDPListening() throws SocketException {
 	if (_udp_inputThread != null && !_udp_inputThread.isClosed())
 	    return;
 
-	try {
-	    udpSocket = new DatagramSocket(_udp_port);
-	} catch (SocketException e) {
-	    log.println("Failed to listen for UDP packets.");
-	    e.printStackTrace(log);
-	}
+	udpSocket = new DatagramSocket(_udp_port);
 	_udp_inputThread = new UDPInputThread(this, udpSocket);
 	_udp_inputThread.start();
     }
@@ -552,7 +562,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
      * @return Users with matching
      * user name as <i>user</i>. Multiple hubs
      * may contain the same user
-     * name hence a Vector list is
+     * name hence an ArrayList is
      * returned. It will never be null.
      */
     public List<User> getUsers(String user) {
@@ -575,7 +585,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
      * then arbitraly any one is
      * returned.
      * @param user
-     * @return null is returned if
+     * @return null if
      * no user with this user name is
      * found in any of the hubs.
      */

@@ -45,7 +45,7 @@ import org.elite.jdcbot.framework.jDCBot;
  */
 public class DownloadBot extends jDCBot {
 
-    public DownloadBot() {
+    public DownloadBot() throws IOException {
 	super("DownloadBot", //Bot's name
 		"127.0.0.1", //Bot's IP
 		9020, //Bot's listen port
@@ -176,7 +176,11 @@ public class DownloadBot extends jDCBot {
     }
 
     public static void main(String[] args) {
-	new DownloadBot();
+	try {
+	    new DownloadBot();
+	} catch (IOException e) {
+	    e.printStackTrace();
+	}
 
     }
 

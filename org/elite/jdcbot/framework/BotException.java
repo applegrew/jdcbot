@@ -53,7 +53,9 @@ public class BotException extends Exception {
 	CONNECTION_TO_REMOTE_CLIENT_FAILED,
 	TIMEOUT,
 	ALREADY_CONNECTED,
-	CANNOT_DOWNLOAD_FROM_SELF;
+	CANNOT_DOWNLOAD_FROM_SELF,
+	TASK_FAILED_SHUTTING_DOWN,
+	USER_HAS_NO_INFO;
 
 	/**
 	 * Returns a better explanatory message for the Error.
@@ -123,6 +125,14 @@ public class BotException extends Exception {
 		    break;
 		case CANNOT_DOWNLOAD_FROM_SELF:
 		    e = "Cannot download from self";
+		    break;
+		case TASK_FAILED_SHUTTING_DOWN:
+		    e = "The task failed to complete as the object was asked to shut down";
+		    break;
+		case USER_HAS_NO_INFO:
+		    e =
+			    "User has just logged in and his MyINFO is yet to be received. "
+				    + "So, we can't interact reliably with him till his MyINFO is received";
 		    break;
 		default:
 		    e = "Unknow Error type";

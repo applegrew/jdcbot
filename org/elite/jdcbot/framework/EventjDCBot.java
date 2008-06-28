@@ -19,6 +19,7 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -86,9 +87,11 @@ abstract public class EventjDCBot extends jDCBot {
      * to put an upper cap on no. of simultaneous downloads.
      * @param passive Set this to fals if you are not behind a firewall.
      * @param outputLog <u>Almost</u> all debug messages will be printed in this.
+     * @throws IOException 
      */
     public EventjDCBot(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
-	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) {
+	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog)
+	    throws IOException {
 
 	super(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
 		passive, outputLog);
@@ -97,8 +100,9 @@ abstract public class EventjDCBot extends jDCBot {
     /**
      * Constructs a EventjDCBot with the default settings. Your own constructors in classes which extend the EventjDCBot abstract class should be
      * responsible for changing the default settings if required.
+     * @throws IOException 
      */
-    public EventjDCBot(String botIP) {
+    public EventjDCBot(String botIP) throws IOException {
 	super(botIP);
     }
 
@@ -106,8 +110,9 @@ abstract public class EventjDCBot extends jDCBot {
      * Creates a new EventjDCBot instance which can co-exist with other EventjDCBot instances, all
      * sharing the shareable resources like the server sockets, etc.
      * @param multiHubsAdapter An instance of MultiHubsAdapter.
+     * @throws IOException 
      */
-    public EventjDCBot(MultiHubsAdapter multiHubsAdapter) {
+    public EventjDCBot(MultiHubsAdapter multiHubsAdapter) throws IOException {
 	super(multiHubsAdapter);
     }
 

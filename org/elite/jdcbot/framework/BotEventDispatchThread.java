@@ -69,7 +69,8 @@ public class BotEventDispatchThread extends Thread {
     public void run() {
 	while (running) {
 	    while (!dispatch.isEmpty()) {
-		DispatchEntity de = dispatch.get(0);
+		DispatchEntity de = null;
+		de = dispatch.get(0);
 		dispatch.remove(0);
 
 		Method method = de.method;
@@ -171,7 +172,9 @@ public class BotEventDispatchThread extends Thread {
 		}
 	    }
 	    try {
-		sleep(60000L);
+		if (dispatch.isEmpty()) {
+		    sleep(100L);
+		}
 	    } catch (InterruptedException e) {}
 	}
     }
@@ -190,149 +193,122 @@ public class BotEventDispatchThread extends Thread {
 	public Object params[];
     }
 
+    private void addToDispath(DispatchEntity de) {
+	dispatch.add(de);
+	this.interrupt();
+    }
+
     //*********Proxy funtions*********/
     void callOnDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onDownloadComplete;
 	de.params = new Object[] { user, due, success, e };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnUploadComplete(User user, DUEntity due, boolean success, BotException e) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onUploadComplete;
 	de.params = new Object[] { user, due, success, e };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnUploadStart(User user, DUEntity due) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onUploadStart;
 	de.params = new Object[] { user, due };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnUpdateMyInfo(String user) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onUpdateMyInfo;
 	de.params = new Object[] { user };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnDownloadStart(User user, DUEntity due) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onDownloadStart;
 	de.params = new Object[] { user, due };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnPassiveSearch(String user, SearchSet search) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onPassiveSearch;
 	de.params = new Object[] { user, search };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnActiveSearch(String ip, int port, SearchSet search) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onActiveSearch;
 	de.params = new Object[] { ip, port, search };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnChannelMessage(String user, String channel, String message) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onChannelMessage;
 	de.params = new Object[] { user, channel, message };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnPrivateMessage(String user, String message) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onPrivateMessage;
 	de.params = new Object[] { user, message };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnQuit(String user) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onQuit;
 	de.params = new Object[] { user };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnJoin(String user) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onJoin;
 	de.params = new Object[] { user };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnPublicMessage(String user, String message) {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onPublicMessage;
 	de.params = new Object[] { user, message };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnDisconnect() {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onDisconnect;
 	de.params = null;
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnBotQuit() {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onBotQuit;
 	de.params = null;
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnConnect2Client() {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onConnect2Client;
 	de.params = null;
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnConnect() {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onConnect;
 	de.params = null;
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 
     void callOnSearchResult(String senderNick, String senderIP, int senderPort, SearchResultSet result, int free_slots, int total_slots,
@@ -340,8 +316,6 @@ public class BotEventDispatchThread extends Thread {
 	DispatchEntity de = new DispatchEntity();
 	de.method = Method.onSearchResult;
 	de.params = new Object[] { senderNick, senderIP, senderPort, result, free_slots, total_slots, hubName };
-	dispatch.add(de);
-
-	this.interrupt();
+	addToDispath(de);
     }
 }

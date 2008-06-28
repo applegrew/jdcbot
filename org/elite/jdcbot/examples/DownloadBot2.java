@@ -59,7 +59,7 @@ public class DownloadBot2 extends jDCBot {
     List<DUEntity> allDU;
     private long transferLimit = 0;
 
-    public DownloadBot2() {
+    public DownloadBot2() throws IOException {
 	super("DownloadBot2", //Bot's name
 		"127.0.0.1", //Bot's IP
 		9020, //Bot's listen port
@@ -226,7 +226,10 @@ public class DownloadBot2 extends jDCBot {
     }
 
     public static void main(String[] args) {
-	new DownloadBot2();
-
+	try {
+	    new DownloadBot2();
+	} catch (IOException e) {
+	    e.printStackTrace();
+	}
     }
 }

@@ -76,14 +76,14 @@ public class SheriffBot extends jDCBot {
     private volatile boolean listUpdatedAtleastOnce = false;
     private volatile boolean isUpdateInProgress = false;
 
-    public SheriffBot(PrintStream outputLog) {
+    public SheriffBot(PrintStream outputLog) throws IOException {
 	// constructs our bot with 0B share size and 3 slots, which updates
 	// file list every 30mins.
 	this("127.0.0.1", 1411, "127.0.0.1", 9000, 10000, "0", 3, 1000 * 60 * 30, "./", "", false, outputLog);
     }
 
     public SheriffBot(String hubIP, int hubPort, String sharesizeInBytes, String hubpass, String botIP, int listenPort, int UDP_listenPort,
-	    String filelistDir, boolean active, PrintStream outputLog) {
+	    String filelistDir, boolean active, PrintStream outputLog) throws IOException {
 	// constructs our bot with 10GB share size and 3 slots, which updates
 	// file list every 6hr.
 	this(hubIP, hubPort, botIP, listenPort, UDP_listenPort, sharesizeInBytes, 3, 6 * 60 * 60 * 1000, filelistDir, hubpass, !active,
@@ -91,7 +91,7 @@ public class SheriffBot extends jDCBot {
     }
 
     public SheriffBot(String hubIP, int hubPort, String botIP, int listenPort, int UDP_listenPort, String sharesizeInBytes, int noOfSlots,
-	    int updateInterval, String filelistDir, String hubPass, boolean passive, PrintStream outputLog) {
+	    int updateInterval, String filelistDir, String hubPass, boolean passive, PrintStream outputLog) throws IOException {
 	super("SheriffBot", botIP, listenPort, UDP_listenPort, hubPass, "Monitor Bot", "LAN(T1)1", "", sharesizeInBytes, noOfSlots, 4,
 		passive, outputLog);
 
@@ -401,15 +401,22 @@ public class SheriffBot extends jDCBot {
 
     public static void main(String[] args) {
 	System.setErr(System.out);
-	if (args.length == 0)
-	    new SheriffBot(System.out);
-	else if (args.length == 9) {
-	    new SheriffBot(args[0], Integer.parseInt(args[1]), args[7], args[6], args[2], Integer.parseInt(args[3]), Integer
-		    .parseInt(args[4]), args[5], Boolean.parseBoolean(args[8]), System.out);
-	} else
-	    System.out.println("Wrong number of arguments.\n" + "Accepted arguments are:\n" + "none or\n"
-		    + "HubIP HubPort TheIPOnWhichTheBotIsRunning ThePortOnWhichTheBotShouldListen "
-		    + "ThePortToListenForUDPPackets TheDirectoryWhereFileListsShouldBeSaved BotPass ShareSize IsActive(give true/false)");
+	try {
+	    if (args.length == 0)
+		new SheriffBot(System.out);
+	    else if (args.length == 9) {
+		new SheriffBot(args[0], Integer.parseInt(args[1]), args[7], args[6], args[2], Integer.parseInt(args[3]), Integer
+			.parseInt(args[4]), args[5], Boolean.parseBoolean(args[8]), System.out);
+	    } else
+		System.out
+			.println("Wrong number of arguments.\n"
+				+ "Accepted arguments are:\n"
+				+ "none or\n"
+				+ "HubIP HubPort TheIPOnWhichTheBotIsRunning ThePortOnWhichTheBotShouldListen "
+				+ "ThePortToListenForUDPPackets TheDirectoryWhereFileListsShouldBeSaved BotPass ShareSize IsActive(give true/false)");
+	} catch (IOException e) {
+	    e.printStackTrace();
+	}
 
     }
 }

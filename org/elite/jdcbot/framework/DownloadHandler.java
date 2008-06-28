@@ -92,7 +92,7 @@ public class DownloadHandler extends DCIO implements Runnable {
 	}
     }
 
-    public synchronized void notifyPassiveConnect(Socket socket) {
+    public void notifyPassiveConnect(Socket socket) {
 	_socket = socket;
 	if (th != null)
 	    th.interrupt();
@@ -152,7 +152,8 @@ public class DownloadHandler extends DCIO implements Runnable {
 	}
 
 	while (!DownloadEntityQ.isEmpty() && !close) {
-	    DUEntity de = DownloadEntityQ.get(0);
+	    DUEntity de = null;
+	    de = DownloadEntityQ.get(0);
 	    DownloadEntityQ.remove(0);
 
 	    _jdcbot.getDispatchThread().callOnDownloadStart(_u, de);
@@ -268,12 +269,14 @@ public class DownloadHandler extends DCIO implements Runnable {
 
 		    fin = new BufferedInputStream(fin, in_buffer_size);
 		    int intervalCount = checkInterval;
-		    while ((c = fin.read()) != -1 && (len == -1 || ++len <= fileLen) && !close) {
+		    while ((c = fin.read()) != -1 && (len == -1 || (++len <= fileLen && !close))) {
 			intervalCount--;
-			if (intervalCount <= 0 && (index = CancelEntityQ.indexOf(de)) != -1) {
-			    CancelEntityQ.remove(index);
-			    de.os().close();
-			    throw new BotException(BotException.Error.TRANSFER_CANCELLED);
+			synchronized (CancelEntityQ) {
+			    if (intervalCount <= 0 && (index = CancelEntityQ.indexOf(de)) != -1) {
+				CancelEntityQ.remove(index);
+				de.os().close();
+				throw new BotException(BotException.Error.TRANSFER_CANCELLED);
+			    }
 			}
 			if (intervalCount <= 0)
 			    intervalCount = checkInterval;
@@ -282,7 +285,11 @@ public class DownloadHandler extends DCIO implements Runnable {
 		    de.os().close();
 		    osClosed = true;
 
-		    _jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, true, null);
+		    if (len == fileLen || len == -1)
+			_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, true, null);
+		    else
+			_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false,
+				new BotException(BotException.Error.TASK_FAILED_SHUTTING_DOWN));
 
 		} catch (IOException ioe) {
 		    _jdcbot.log.println("IOException in DownloadHandler thread: " + ioe.getMessage());
@@ -301,6 +308,11 @@ public class DownloadHandler extends DCIO implements Runnable {
 		    if (!osClosed)
 			de.os().close();
 		} catch (IOException e) {
+		    if (e.getMessage().equals("Bad file descriptor")) {
+			_jdcbot.log.println("IOException: Bad file descriptor; in DownloadHandler.run()->de.os().write(c).\n"
+				+ "This thrown probably due to a known bug JDK 1.5 & 1.6. "
+				+ "See http://256.com/gray/docs/misc/java_bad_file_descriptor_close_bug.shtml");
+		    }
 		    e.printStackTrace(_jdcbot.log);
 		}
 	    }
@@ -336,7 +348,9 @@ public class DownloadHandler extends DCIO implements Runnable {
     }
 
     private void notifyFailedConnection(BotException e) {
-	for (DUEntity de : DownloadEntityQ)
-	    _jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, e);
+	synchronized (DownloadEntityQ) {
+	    for (DUEntity de : DownloadEntityQ)
+		_jdcbot.getDispatchThread().callOnDownloadComplete(_u, de, false, e);
+	}
     }
 }

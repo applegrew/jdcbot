@@ -91,3 +91,7 @@ way is view diffs at http://jdcbot.cvs.sourceforge.net/.
 * All event methdos in jDCBot (the ones whose names start with 'on' and are overridable) will now
 	be run in jDCBot Dispatch Thread. (Previously only a handful ran in that thread.)
 
+-- v1.0 2008-June-29 --
+* Fixed more bugs and removed dead-locks. Hopefully they are all resolved.
+* Replaced all use of Vector with ArrayList.
+* Added more features into DemoBot.

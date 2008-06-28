@@ -59,6 +59,8 @@ public class DCIO {
 	    }
 	    buffer += (char) c;
 	} while (c != '|');
+
+	GlobalObjects.log.println("From remote: " + buffer);
 	return buffer;
     }
 
@@ -79,6 +81,8 @@ public class DCIO {
 	byte[] bytes = new byte[buffer.length()];
 	for (int i = 0; i < buffer.length(); i++)
 	    bytes[i] = (byte) buffer.charAt(i);
+
+	GlobalObjects.log.println("From bot: " + buffer);
 	out.write(bytes);
     }
 
@@ -126,6 +130,6 @@ public class DCIO {
      * @return
      */
     public final String parseCmdArgs(String cmd) {
-	return cmd.trim().substring(cmd.indexOf(' '), cmd.lastIndexOf('|'));
+	return cmd.substring(cmd.indexOf(' '), cmd.lastIndexOf('|')).trim();
     }
 }

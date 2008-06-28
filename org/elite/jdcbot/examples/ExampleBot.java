@@ -20,6 +20,8 @@
 
 package org.elite.jdcbot.examples;
 
+import java.io.IOException;
+
 import org.elite.jdcbot.framework.BotException;
 import org.elite.jdcbot.framework.jDCBot;
 import org.elite.jdcbot.util.FloodMessageThread;
@@ -51,7 +53,7 @@ public class ExampleBot extends jDCBot {
 
     private StaticCommands static_cmds = new StaticCommands();
 
-    public ExampleBot() {
+    public ExampleBot() throws IOException {
 	//constructs our bot with 100GB share size and 3 slots
 	super("ExampleBot", "127.0.0.1", 9006, 10006, "", "This example bot", "LAN(T1)8", "", "107374182400", 3, 6, false, System.out);
 	try {
@@ -119,6 +121,10 @@ public class ExampleBot extends jDCBot {
     }
 
     public static void main(String[] args) {
-	new ExampleBot();
+	try {
+	    new ExampleBot();
+	} catch (IOException e) {
+	    e.printStackTrace();
+	}
     }
 }

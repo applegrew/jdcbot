@@ -91,7 +91,7 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
     private List<File> excludes = new ArrayList<File>();
     private List<String> removes = new ArrayList<String>();
 
-    public DemoBot(String mastersNick, MultiHubsAdapter mha) {
+    public DemoBot(String mastersNick, MultiHubsAdapter mha) throws IOException {
 	super(mha);
 
 	ownerNick = mastersNick;
@@ -825,80 +825,86 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
 	String hubIP = "127.0.0.1";
 	int hubPort = 1411;
 
-	MultiHubsAdapter mha = new MultiHubsAdapter("DemoBot", //Bot's name
-		"127.0.0.1", //Bot's IP
-		9000, //Bot's listen port
-		10000, //Bot's listen port for UDP packets
-		"", //Password
-		"A jDCBot Demo Bot", //Description
-		"LAN(T1)" + User.NORMAL_FLAG, //Connection type
-		"", //Email
-		"0", //Share size in bytes
-		3, //No. of upload slots
-		3, //No of download slots.
-		false, //Is passive
-		System.out //PrintStream where debug messages will go
-		);
-
-	boolean settingDirsSuccess = false;
+	MultiHubsAdapter mha;
 	try {
-	    mha.setDirs("settings", "Incomplete");
-	    settingDirsSuccess = true;
-	} catch (IIOException e1) {
-	    e1.printStackTrace();
-	} catch (FileNotFoundException e1) {
-	    e1.printStackTrace();
-	} catch (IOException e1) {
-	    e1.printStackTrace();
-	}
-	if (!settingDirsSuccess) {
-	    System.out.println("Setting of directories was not successfull. Aborting.");
-	    mha.terminate();
-	    return;
-	}
+	    mha = new MultiHubsAdapter("DemoBot", //Bot's name
+		    "127.0.0.1", //Bot's IP
+		    9000, //Bot's listen port
+		    10000, //Bot's listen port for UDP packets
+		    "", //Password
+		    "A jDCBot Demo Bot", //Description
+		    "LAN(T1)" + User.NORMAL_FLAG, //Connection type
+		    "", //Email
+		    "0", //Share size in bytes
+		    3, //No. of upload slots
+		    3, //No of download slots.
+		    false, //Is passive
+		    System.out //PrintStream where debug messages will go
+		    );
 
-	CustomShareManager shareManager = new DemoBot.CustomShareManager(mha);
-	DownloadCentral dc = new DownloadCentral(mha);
+	    boolean settingDirsSuccess = false;
+	    try {
+		mha.setDirs("settings", "Incomplete");
+		settingDirsSuccess = true;
+	    } catch (IIOException e1) {
+		e1.printStackTrace();
+	    } catch (FileNotFoundException e1) {
+		e1.printStackTrace();
+	    } catch (IOException e1) {
+		e1.printStackTrace();
+	    }
+	    if (!settingDirsSuccess) {
+		System.out.println("Setting of directories was not successfull. Aborting.");
+		mha.terminate();
+		return;
+	    }
 
-	mha.setShareManager(shareManager); //CORRECT
-	mha.setDownloadCentral(dc); //CORRECT
+	    CustomShareManager shareManager = new DemoBot.CustomShareManager(mha);
+	    DownloadCentral dc = new DownloadCentral(mha);
 
-	DemoBot db;
-	if (args.length < 1)
-	    db = new DemoBot(owner, mha);
-	else
-	    db = new DemoBot(args[0], mha);
-	db.isSlave = false;
-	db.multiHubsAdapter = mha;
+	    mha.setShareManager(shareManager); //CORRECT
+	    mha.setDownloadCentral(dc); //CORRECT
 
-	shareManager.addListener(db);
-	/*
-	 * Below two lines are WRONG they should been above
-	 * (see the line with 'CORRECT' comment) since DemoBot
-	 * has already been created and since mha didn't have
-	 * this ShareManager or DownloadCentral associated with
-	 * it hence DemoBot gets null and not them. Calling
-	 * setXXX() method is supposed to assign the said
-	 * objects with all the jDCBot instances it has, but
-	 * we haven't yet called mha's connect() method so
-	 * the above DemoBot instance is still not known to mha,
-	 * so effectively db will have null for ShareManager and
-	 * DownloadCentral. 
-	 */
-	//mha.setShareManager(shareManager); WRONG
-	//mha.setDownloadCentral(dc); WRONG
-	try {
-	    if (args.length < 3)
-		mha.connect(hubIP, hubPort, db); //Connecting to hub with default settings.
+	    DemoBot db;
+	    if (args.length < 1)
+		db = new DemoBot(owner, mha);
 	    else
-		mha.connect(args[1], Integer.parseInt(args[2]), db); //Connecting to hub using command-line parameters.
+		db = new DemoBot(args[0], mha);
+	    db.isSlave = false;
+	    db.multiHubsAdapter = mha;
 
-	} catch (BotException e) {
-	    e.printStackTrace();
-	    mha.terminate();
-	} catch (IOException e) {
-	    e.printStackTrace();
-	    mha.terminate();
+	    shareManager.addListener(db);
+	    /*
+	     * Below two lines are WRONG they should been above
+	     * (see the line with 'CORRECT' comment) since DemoBot
+	     * has already been created and since mha didn't have
+	     * this ShareManager or DownloadCentral associated with
+	     * it hence DemoBot gets null and not them. Calling
+	     * setXXX() method is supposed to assign the said
+	     * objects with all the jDCBot instances it has, but
+	     * we haven't yet called mha's connect() method so
+	     * the above DemoBot instance is still not known to mha,
+	     * so effectively db will have null for ShareManager and
+	     * DownloadCentral. 
+	     */
+	    //mha.setShareManager(shareManager); WRONG
+	    //mha.setDownloadCentral(dc); WRONG
+	    try {
+		if (args.length < 3)
+		    mha.connect(hubIP, hubPort, db); //Connecting to hub with default settings.
+		else
+		    mha.connect(args[1], Integer.parseInt(args[2]), db); //Connecting to hub using command-line parameters.
+
+	    } catch (BotException e) {
+		e.printStackTrace();
+		mha.terminate();
+	    } catch (IOException e) {
+		e.printStackTrace();
+		mha.terminate();
+	    }
+
+	} catch (IOException e2) {
+	    e2.printStackTrace();
 	}
     }
 

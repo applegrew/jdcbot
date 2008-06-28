@@ -51,7 +51,6 @@ import org.elite.jdcbot.util.OutputEntityStream;
  */
 public class DownloadCentral implements Runnable {
     private static final String queueFileName = "queue";
-    private static final long timeBetweenSearches = 10 * 1000; //10 sec
 
     public static enum State {
 	QUEUED, RUNNING;
@@ -64,8 +63,8 @@ public class DownloadCentral implements Runnable {
     volatile private boolean run = false;
     volatile private boolean supressSearch = false;
     private double transferRate = 0;
-
-    private long lastSearchTime = -1;
+    private long timeBetweenSearches = 10 * 1000; //10 sec
+    private SrcSearcher searchTh;
 
     /**
      * Constructs a new instance of DownloadCentral.<br>
@@ -91,6 +90,16 @@ public class DownloadCentral implements Runnable {
      */
     public void setDirs(String path2IncompleteDir) {
 	incompleteDir = path2IncompleteDir;
+    }
+
+    /**
+     * This is time minimum interval of searching on the hub for
+     * alternate sources. Setting this value to low value can
+     * get you banned for search spam. Default is 10s.
+     * @param interval Minimum time interval in <u>milliseconds</u>.
+     */
+    public void setTimeBetweenSearches(long interval) {
+	timeBetweenSearches = interval;
     }
 
     /**
@@ -142,25 +151,39 @@ public class DownloadCentral implements Runnable {
      * Starts new thread that processes and the download
      * queue and searches the hub for more sources.
      */
-    synchronized public void startNewQueueProcessThread() {
+    public void startNewQueueProcessThread() {
 	if (th != null) {
-	    GlobalObjects.log.println("DownloadCentral.QueueProcess Thread already running.");
+	    GlobalObjects.log.println("DownloadCentral Threads already running.");
 	} else {
 	    th = new Thread(this, "DownloadCentral Queue Processing Thread");
 	    run = true;
+	    searchTh = new SrcSearcher();
 	    supressSearch = true;
+	    searchTh.start();
 	    th.start();
 	}
     }
 
-    synchronized public void stopQueueProcessThread() {
+    public void stopQueueProcessThread() {
 	run = false;
 	if (th != null)
 	    th.interrupt();
 	th = null;
+	if (searchTh != null)
+	    searchTh.stopIt();
+	searchTh = null;
     }
 
-    synchronized void triggerProcessQ(boolean supressSearch) {
+    /**
+     * Call this to force processing of download queue.
+     * This is done periodically at some interval of time.
+     * @param supressSearch If this is false then alternative
+     * sources of files in the download queue is searched too.
+     * It is recommended that you set this to true and let
+     * DownloadCentral do the searching at its convinience,
+     * else you could get banned from hub for search spamming.
+     */
+    public void triggerProcessQ(boolean supressSearch) {
 	this.supressSearch = supressSearch;
 	if (th != null && run)
 	    th.interrupt();
@@ -269,8 +292,7 @@ public class DownloadCentral implements Runnable {
 	return null;
     }
 
-    public synchronized void download(String file, boolean isHash, long len, File saveto, User u) throws BotException,
-	    FileNotFoundException {
+    public void download(String file, boolean isHash, long len, File saveto, User u) throws BotException, FileNotFoundException {
 	Download dwn = new Download(this);
 	dwn.totalLen = len;
 	dwn.isHash = isHash;
@@ -306,33 +328,35 @@ public class DownloadCentral implements Runnable {
     }
 
     private synchronized void processQ() {
-	for (Download d : toDownload) {
-	    if (d.state == State.QUEUED) {
-		File t = new File(d.getTempPath());
-		if (t.exists()) {
-		    d.due.start(t.length());
-		    d.due.len(d.totalLen - t.length());
-		    if (d.due.os() instanceof OutputEntityStream)
-			((OutputEntityStream) d.due.os()).setTotalStreamLength(d.due.len());
-		}
-		do {
-		    User u = d.getNextUser();
-		    if (u != null) {
-			try {
-			    d.downloadingFrom = u;
-			    u.download(d.due);
-			    break;
-			} catch (BotException e) {
-			    if (isRecoverableException(e.getError()))
-				GlobalObjects.log.println("Exception (" + e.getMessage()
-					+ ")by DownloadManager. Anyway this is not serious, continuing.");
-			    else {
-				GlobalObjects.log.println("Un-recoverable exception: " + e.getMessage() + ". Removing this source.");
-				d.removeSrc(new Src(u, boi));
+	synchronized (toDownload) {
+	    for (Download d : toDownload) {
+		if (d.state == State.QUEUED) {
+		    File t = new File(d.getTempPath());
+		    if (t.exists()) {
+			d.due.start(t.length());
+			d.due.len(d.totalLen - t.length());
+			if (d.due.os() instanceof OutputEntityStream)
+			    ((OutputEntityStream) d.due.os()).setTotalStreamLength(d.due.len());
+		    }
+		    do {
+			User u = d.getNextUser();
+			if (u != null) {
+			    try {
+				d.downloadingFrom = u;
+				u.download(d.due);
+				break;
+			    } catch (BotException e) {
+				if (isRecoverableException(e.getError()))
+				    GlobalObjects.log.println("Exception (" + e.getMessage()
+					    + ")by DownloadManager. Anyway this is not serious, continuing.");
+				else {
+				    GlobalObjects.log.println("Un-recoverable exception: " + e.getMessage() + ". Removing this source.");
+				    d.removeSrc(new Src(u, boi));
+				}
 			    }
 			}
-		    }
-		} while (!d.isAllSrcsTried());
+		    } while (!d.isAllSrcsTried());
+		}
 	    }
 	}
     }
@@ -360,7 +384,7 @@ public class DownloadCentral implements Runnable {
      * @return true when download has been successfully
      * cancelled, else false is returned.
      */
-    synchronized public boolean cancelDownload(String file) {
+    public boolean cancelDownload(String file) {
 	Download d = getDownloadByFilename(file);
 	if (d == null)
 	    return false;
@@ -423,6 +447,8 @@ public class DownloadCentral implements Runnable {
 	    case USERNAME_NOT_FOUND:
 	    case CONNECTION_TO_REMOTE_CLIENT_FAILED:
 	    case TIMEOUT:
+	    case TASK_FAILED_SHUTTING_DOWN:
+	    case USER_HAS_NO_INFO:
 		return true;
 	    default:
 		return false;
@@ -468,33 +494,13 @@ public class DownloadCentral implements Runnable {
     }
 
     private void search(Download d) {
-	if (!d.isHash)
-	    return;
-
-	if (lastSearchTime != -1 && System.currentTimeMillis() - lastSearchTime < timeBetweenSearches)
-	    return;
-	lastSearchTime = System.currentTimeMillis();
-
-	DUEntity due = d.due;
-
-	String file;
-	if (due.file().startsWith("TTH/"))
-	    file = due.file().substring(4);
-	else
-	    file = due.file();
-
-	SearchSet ss = new SearchSet();
-	ss.data_type = SearchSet.DataType.TTH;
-	ss.string = file;
-	try {
-	    boi.Search(ss);
-	} catch (IOException e) {
-	    e.printStackTrace(GlobalObjects.log);
+	synchronized (searchTh) {
+	    if (searchTh != null)
+		searchTh.search(d);
 	}
-
     }
 
-    synchronized void searchResult(String tth, User u) {
+    void searchResult(String tth, User u) {
 	if (u == null || tth.equals(""))
 	    return;
 	if (tth.startsWith("TTH:"))
@@ -522,11 +528,13 @@ public class DownloadCentral implements Runnable {
      * @throws IOException Ths is thrown if there is any error while writng to the stream.
      */
     public void saveQ(OutputStream out) throws IOException {
+	GlobalObjects.log.println("DownloadQ saving...");
 	ObjectOutputStream obj_out = new ObjectOutputStream(out);
 	synchronized (toDownload) {
 	    obj_out.writeObject(new DownloadQ(toDownload));
 	}
 	obj_out.close();
+	GlobalObjects.log.println("DownloadQ saved.");
     }
 
     /**
@@ -542,6 +550,7 @@ public class DownloadCentral implements Runnable {
      * @throws InstantiationException The read object is not instance of DownloadCentral.
      */
     public void loadQ(InputStream in) throws IOException, ClassNotFoundException, InstantiationException {
+	GlobalObjects.log.println("DownloadQ loading...");
 	ObjectInputStream obj_in = new ObjectInputStream(in);
 	Object obj = obj_in.readObject();
 	obj_in.close();
@@ -554,6 +563,7 @@ public class DownloadCentral implements Runnable {
 	    synchronized (toDownload) {
 		toDownload = dq;
 	    }
+	    GlobalObjects.log.println("DownloadQ loaded.");
 	} else
 	    throw new InstantiationException("The object read is not instance of DownloadCentral.DownloadQ.");
     }
@@ -594,7 +604,7 @@ public class DownloadCentral implements Runnable {
 	    return dc.incompleteDir + File.separator + temp;
 	}
 
-	public synchronized void addSrc(Src s) {
+	public void addSrc(Src s) {
 	    synchronized (srcs) {
 		if (!srcs.contains(s))
 		    srcs.add(s);
@@ -649,34 +659,34 @@ public class DownloadCentral implements Runnable {
 	    curr_src = -1;
 	}
 
-	synchronized public void reset(DownloadCentral Dc) {
+	public void reset(DownloadCentral Dc) {
 	    dc = Dc;
 
 	    curr_src = -1;
 	    isAllSrcsTried = false;
 	    downloadingFrom = null;
 	    state = State.QUEUED;
-	    OutputEntityStream dos;
+	    OutputEntityStream dos = null;
 	    try {
 		File t = new File(getTempPath());
 		if (t.exists()) {
 		    due.start(t.length());
 		    due.len(totalLen - t.length());
+		    dos = new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(getTempPath(), true)));
 		} else {
 		    due.start(0);
 		    due.len(totalLen);
+		    dos = new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(getTempPath())));
 		}
-		dos = new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(t, true)));
+
 		dos.setTransferLimit(dc.transferRate);
 		dos.setTotalStreamLength(due.len());
-		due.os(dos);
 	    } catch (FileNotFoundException e) {
 		e.printStackTrace(GlobalObjects.log);
 	    }
-	    synchronized (srcs) {
-		for (Src s : srcs)
-		    s.reset(dc.boi);
-	    }
+	    due.os(dos);
+	    for (Src s : srcs)
+		s.reset(dc.boi);
 	}
 
 	public boolean equals(Object o) {
@@ -736,6 +746,7 @@ public class DownloadCentral implements Runnable {
 		user = boi.getUserByCID(CID);
 	    if (user == null)
 		user = boi.getUser(username);
+	    System.err.println("DC.Download.getUser: " + user);
 	    return user;
 	}
 
@@ -754,11 +765,11 @@ public class DownloadCentral implements Runnable {
 		username = user.username();
 	}
 
-	synchronized public void reset(BotInterface Boi) {
+	public void reset(BotInterface Boi) {
 	    boi = Boi;
 
 	    user = boi.getUserByCID(CID);
-	    if (user == null && boi != null) {
+	    if (user == null) {
 		if (boi instanceof MultiHubsAdapter) {
 		    for (User u : ((MultiHubsAdapter) boi).getUsers(username))
 			try {
@@ -789,18 +800,81 @@ public class DownloadCentral implements Runnable {
 	    if (o instanceof Src) {
 		Src s = (Src) o;
 		if ((this.user != null && s.user != null && this.user.equals(s.user))
-			|| (this.CID != null && s.CID != null && this.CID.equalsIgnoreCase(s.CID)))
+			|| (!this.CID.isEmpty() && !s.CID.isEmpty() && this.CID.equalsIgnoreCase(s.CID))
+			|| (this.username.equalsIgnoreCase(s.username)))
 		    return true;
 	    }
 	    return false;
 	}
 
 	public int hashCode() {
-	    return HASH_CONST + (user == null ? CID == null || CID.isEmpty() ? 0 : CID.hashCode() : user.hashCode());
+	    return HASH_CONST + (user == null ? CID.isEmpty() || CID == null ? username.hashCode() : CID.hashCode() : user.hashCode());
 	}
 
 	public String toString() {
 	    return (user != null ? user.username() + " " : "") + CID;
+	}
+    }
+
+    private class SrcSearcher extends Thread {
+	private List<Download> searchFor = Collections.synchronizedList(new ArrayList<Download>());
+	private volatile boolean running = true;
+
+	private long lastSearchTime = -1;
+
+	public SrcSearcher() {
+	    super("AltSrc Searcher Thread");
+	}
+
+	public void run() {
+	    while (running) {
+		while (!searchFor.isEmpty()) {
+		    Download d = null;
+		    synchronized (searchFor) {
+			if (searchFor.isEmpty())
+			    break;
+			d = searchFor.get(0);
+			searchFor.remove(0);
+		    }
+		    if (d == null || !d.isHash)
+			break;
+
+		    if (lastSearchTime != -1 && System.currentTimeMillis() - lastSearchTime < timeBetweenSearches)
+			break;
+		    lastSearchTime = System.currentTimeMillis();
+
+		    DUEntity due = d.due;
+
+		    String file;
+		    if (due.file().startsWith("TTH/"))
+			file = due.file().substring(4);
+		    else
+			file = due.file();
+
+		    SearchSet ss = new SearchSet();
+		    ss.data_type = SearchSet.DataType.TTH;
+		    ss.string = file;
+		    try {
+			boi.Search(ss);
+		    } catch (IOException e) {
+			e.printStackTrace(GlobalObjects.log);
+		    }
+		}
+
+		try {
+		    Thread.sleep(timeBetweenSearches);
+		} catch (InterruptedException e) {}
+	    }
+	}
+
+	public void search(Download d) {
+	    searchFor.add(d);
+	    this.interrupt();
+	}
+
+	public void stopIt() {
+	    running = false;
+	    this.interrupt();
 	}
     }
 }

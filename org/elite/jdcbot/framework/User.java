@@ -46,46 +46,33 @@ public class User {
 
     private String _username, _desc, _conn, _mail, _share, _tag, _supports, _ip;
     private int _flag;
-    private boolean _hasInfo, _op, extraSlotsGranted, blockUploadToUser;
+    private volatile boolean _hasInfo, _op, extraSlotsGranted, blockUploadToUser;
     private jDCBot _bot;
     private String _CID;
-    private boolean hasQuit = false;
+    private volatile boolean hasQuit = false;
 
     private int hashCode = -1;
 
     public User(String username, jDCBot bot) {
-	this(username, "", "", "", "0", bot);
-
-	/*_username = username;
-	 _hasInfo = false;
-	 _op = false;
-	 _supports = "";
-	 _ip = "";
-	 _bot = bot;
-	 extraSlotsGranted = false;
-	 blockUploadToUser = false;
-	 _flag = 1;
-	 _tag = "";
-	 _CID = "";
-	 _conn = "";
-	 init();
-	 */
+	_username = username;
+	_bot = bot;
+	setInfo("", "", "", "0");
+	_hasInfo = false;
     }
 
-    public User(String username, String desc, String conn, String mail, String share, jDCBot bot) {
-	_username = username;
+    synchronized void setInfo(String desc, String conn, String mail, String share) {
+	_hasInfo = true;
+
 	_desc = desc;
 	_conn = conn;
 	_mail = mail;
 	_share = share;
-	_hasInfo = true;
 	_op = false;
 	_supports = "";
 	_ip = "";
-	_bot = bot;
 	extraSlotsGranted = false;
 	blockUploadToUser = false;
-	_CID = null;
+	_CID = "";
 
 	int index = _desc.indexOf('<');
 	if (index == -1)
@@ -136,11 +123,15 @@ public class User {
     }
 
     public String getClientID() {
-	return _CID;
+	synchronized (_CID) {
+	    return _CID;
+	}
     }
 
     public void setClientID(String CID) {
-	_CID = CID;
+	synchronized (_CID) {
+	    _CID = CID;
+	}
     }
 
     public String getHubSignature() {
@@ -156,7 +147,9 @@ public class User {
     }
 
     public void setSupports(String supports) {
-	_supports = supports;
+	synchronized (_supports) {
+	    _supports = supports.toLowerCase();
+	}
 	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
@@ -179,16 +172,22 @@ public class User {
      * @return
      */
     public boolean isSupports(String feature) {
-	return _supports.toLowerCase().indexOf(feature.toLowerCase()) != -1;
+	synchronized (_supports) {
+	    return _supports.indexOf(feature.toLowerCase()) != -1;
+	}
     }
 
     public void setUserIP(String ip) {
-	_ip = ip;
+	synchronized (_ip) {
+	    _ip = ip;
+	}
 	_bot.getDispatchThread().callOnUpdateMyInfo(_username);
     }
 
     public String getUserIP() {
-	return _ip;
+	synchronized (_ip) {
+	    return _ip;
+	}
     }
 
     /**
@@ -203,7 +202,9 @@ public class User {
      * use method with that name 
      */
     public String description() {
-	return _desc;
+	synchronized (_desc) {
+	    return _desc;
+	}
     }
 
     /**
@@ -231,14 +232,18 @@ public class User {
      * @return true if user has client tag, false otherwise
      */
     public boolean hasTag() {
-	return (_tag.length() != 0);
+	synchronized (_tag) {
+	    return (_tag.length() != 0);
+	}
     }
 
     /**
      * @return Client tag if it exist
      */
     public String tag() {
-	return _tag;
+	synchronized (_tag) {
+	    return _tag;
+	}
     }
 
     /**
@@ -320,6 +325,14 @@ public class User {
 	return extraSlotsGranted;
     }
 
+    /**
+     * Grants an extra slot to the user.
+     * <p>
+     * Note that the grant won't be revoked automatically
+     * after any time period.
+     * @param flag Set this to false to revoke
+     * extra slot grant.
+     */
     public void setGratedExtraSlotFlag(boolean flag) {
 	extraSlotsGranted = flag;
     }
@@ -402,7 +415,7 @@ public class User {
 
     @Override
     public String toString() {
-	return _username + "@" + getHubSignature() + " CID:" + (_CID == null || _CID.isEmpty() ? "unknown" : _CID);
+	return _username + "@" + getHubSignature() + " CID:" + (_CID.isEmpty() ? "unknown" : _CID) + " Has Info: " + _hasInfo;
     }
 
 }

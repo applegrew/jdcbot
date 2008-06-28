@@ -19,6 +19,7 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.IOException;
 import java.io.PrintStream;
 
 import org.elite.jdcbot.shareframework.SearchResultSet;
@@ -65,9 +66,11 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
      * to put an upper cap on no. of simultaneous downloads.
      * @param passive Set this to fals if you are not behind a firewall.
      * @param outputLog <u>Almost</u> all debug messages will be printed in this.
+     * @throws IOException 
      */
     public EventjDCBotAdapter(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
-	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog) {
+	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog)
+	    throws IOException {
 
 	super(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
 		passive, outputLog);
@@ -77,8 +80,9 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
      * Constructs a EventjDCBotAdapter with the default settings. Your own constructors
      * in classes which extend the EventjDCBotAdapter abstract class should be
      * responsible for changing the default settings if required.
+     * @throws IOException 
      */
-    public EventjDCBotAdapter(String botIP) {
+    public EventjDCBotAdapter(String botIP) throws IOException {
 	super(botIP);
     }
 
@@ -86,8 +90,9 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
      * Creates a new EventjDCBotAdapter instance which can co-exist with other EventjDCBotAdapter instances, all
      * sharing the shareable resources like the server sockets, etc.
      * @param multiHubsAdapter An instance of MultiHubsAdapter.
+     * @throws IOException 
      */
-    public EventjDCBotAdapter(MultiHubsAdapter multiHubsAdapter) {
+    public EventjDCBotAdapter(MultiHubsAdapter multiHubsAdapter) throws IOException {
 	super(multiHubsAdapter);
     }
 
