@@ -10,9 +10,9 @@ To compile:-
 ----------
 Open a console and cd to this directory and type th following command.
 
-javac -d bin -cp lib/bzip2.jar lib/jacksum.jar org/ag/sheriffbot/*.java org/elite/jdcbot/examples/*.java org/elite/jdcbot/framework/*.java org/elite/jdcbot/shareframework/*.java org/elite/jdcbot/util/*.java 
+javac -d bin -cp lib/bzip2.jar:lib/jacksum.jar org/ag/sheriffbot/*.java org/elite/jdcbot/examples/*.java org/elite/jdcbot/framework/*.java org/elite/jdcbot/shareframework/*.java org/elite/jdcbot/util/*.java 
 ______________________
-Note for Windows users: You may need to change forward slashes (/) to backward slashes (\).
+Note for Windows users: You may need to change forward slashes (/) to backward slashes (\) and replce : by ; for the -cp option.
 
 This should finish the compilation without any errors. If you get any error then probably you _don't_ have JDK 1.5 or higher installed. Type
 
