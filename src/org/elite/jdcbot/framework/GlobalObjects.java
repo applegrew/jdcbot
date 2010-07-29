@@ -19,7 +19,8 @@
  */
 package org.elite.jdcbot.framework;
 
-import java.io.PrintStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Created on 04-Jun-08<br>
@@ -27,17 +28,20 @@ import java.io.PrintStream;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1
+ * @version 0.1.1
  */
 public class GlobalObjects {
-    /**
-     * Initialized by jDCBot.
-     */
-    public static PrintStream log = System.out;
+	
+	/**
+	 * Global logger.
+	 */
+	public static final Logger getLogger(Class<?> c){
+		return LoggerFactory.getLogger(c);
+	}
     /**
      * The definitive version number of this release of jDCBot.
      */
-    public static final String VERSION = "1.0";
+    public static final String VERSION = "1.1.1";
     /**
      * The name of the client.
      */

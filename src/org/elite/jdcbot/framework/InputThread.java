@@ -23,6 +23,8 @@ package org.elite.jdcbot.framework;
 import java.io.*;
 import java.net.SocketException;
 
+import org.slf4j.Logger;
+
 /**
  * Threads that reads raw commands from hub and passes them to classes
  * that implement InputThreadTarget.
@@ -34,71 +36,72 @@ import java.net.SocketException;
  * 
  */
 public class InputThread extends DCIO implements Runnable {
-    private InputStream _in;
-    private InputThreadTarget _inputThreadTrgt;
-    private volatile boolean running = false;
-    private String threadName;
+	private static final Logger logger = GlobalObjects.getLogger(InputThread.class);
+	private InputStream _in;
+	private InputThreadTarget _inputThreadTrgt;
+	private volatile boolean running = false;
+	private String threadName;
 
-    /** 
-     * Constructs thread that will read raw commands from hub
-     *
-     * @param inputThreadTrgt InputThreadTarget instance
-     * @param in InputStream class from which we will read.
-     */
-    public InputThread(InputThreadTarget inputThreadTrgt, InputStream in) {
-	this(inputThreadTrgt, in, "InputThread");
-    }
+	/** 
+	 * Constructs thread that will read raw commands from hub
+	 *
+	 * @param inputThreadTrgt InputThreadTarget instance
+	 * @param in InputStream class from which we will read.
+	 */
+	public InputThread(InputThreadTarget inputThreadTrgt, InputStream in) {
+		this(inputThreadTrgt, in, "InputThread");
+	}
 
-    public InputThread(InputThreadTarget inputThreadTrgt, InputStream in, String threadName) {
-	_inputThreadTrgt = inputThreadTrgt;
-	_in = in;
-	this.set_IOExceptionMsg("Disconnected");
-	if (threadName == null)
-	    threadName = "InputThread";
-	this.threadName = threadName;
-    }
+	public InputThread(InputThreadTarget inputThreadTrgt, InputStream in, String threadName) {
+		_inputThreadTrgt = inputThreadTrgt;
+		_in = in;
+		this.set_IOExceptionMsg("Disconnected");
+		if (threadName == null)
+			threadName = "InputThread";
+		this.threadName = threadName;
+	}
 
-    public void run() {
-	try {
-	    running = true;
-	    while (running) {
-		String rawCommand = null;
-		rawCommand = this.ReadCommand(_in);
-		if ((rawCommand == null) || (rawCommand.length() == 0)) {
-		    running = false;
-		    _inputThreadTrgt.disconnected();
+	public void run() {
+		try {
+			running = true;
+			while (running) {
+				String rawCommand = null;
+				rawCommand = this.ReadCommand(_in);
+				if ((rawCommand == null) || (rawCommand.length() == 0)) {
+					running = false;
+					_inputThreadTrgt.disconnected();
+				} else
+					_inputThreadTrgt.handleCommand(rawCommand);
+				onReadingCommand();
+			}
+		} catch (Exception e) {
+			if (!(e instanceof SocketException && e.getMessage().equals("Socket closed")))
+				logger.error("Exception in run()", e);
+			_inputThreadTrgt.disconnected();
+		}
+	}
+
+	protected void onReadingCommand() {}
+
+	/**
+	 * Starts the InputThread thread.
+	 */
+	public void start() {
+		Thread th = new Thread(this, threadName);
+		if (th.getState() == Thread.State.NEW) {
+			running = true;
+			th.start();
+			logger.debug("new InputThread thread started.");
 		} else
-		    _inputThreadTrgt.handleCommand(rawCommand);
-		onReadingCommand();
-	    }
-	} catch (Exception e) {
-	    if (!(e instanceof SocketException && e.getMessage().equals("Socket closed")))
-		e.printStackTrace(GlobalObjects.log);
-	    _inputThreadTrgt.disconnected();
+			throw new IllegalThreadStateException("Thread is already running");
 	}
-    }
 
-    protected void onReadingCommand() {}
-
-    /**
-     * Starts the InputThread thread.
-     */
-    public void start() {
-	Thread th = new Thread(this, threadName);
-	if (th.getState() == Thread.State.NEW) {
-	    running = true;
-	    th.start();
-	    GlobalObjects.log.println("new InputThread thread started.");
-	} else
-	    throw new IllegalThreadStateException("Thread is already running");
-    }
-
-    public void stop() {
-	running = false;
-	try {
-	    _in.close();
-	} catch (IOException e) {
-	    e.printStackTrace(GlobalObjects.log);
+	public void stop() {
+		running = false;
+		try {
+			_in.close();
+		} catch (IOException e) {
+			logger.error("Exception in stop()", e);
+		}
 	}
-    }
 }

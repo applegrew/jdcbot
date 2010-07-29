@@ -23,11 +23,13 @@ package org.elite.jdcbot.examples;
 import java.io.IOException;
 
 import org.elite.jdcbot.framework.BotException;
+import org.elite.jdcbot.framework.GlobalObjects;
 import org.elite.jdcbot.framework.jDCBot;
 import org.elite.jdcbot.util.FloodMessageThread;
 import org.elite.jdcbot.util.GoogleCalculation;
 import org.elite.jdcbot.util.StaticCommands;
 import org.elite.jdcbot.util.TimerThread;
+import org.slf4j.Logger;
 
 /**
  * ExampleBot is simple derived class from jDCBot apstract class overriding some methods.
@@ -44,87 +46,88 @@ import org.elite.jdcbot.util.TimerThread;
  * @author Kokanovic Branko
  * @author Milos Grbic
  * @author AppleGrew
- * @version 0.7
+ * @version 0.7.1
  */
 public class ExampleBot extends jDCBot {
+	private static final Logger logger = GlobalObjects.getLogger(ExampleBot.class);
 
-    //abstract TimerThread class for flood message
-    private TimerThread tt;
+	//abstract TimerThread class for flood message
+	private TimerThread tt;
 
-    private StaticCommands static_cmds = new StaticCommands();
+	private StaticCommands static_cmds = new StaticCommands();
 
-    public ExampleBot() throws IOException {
-	//constructs our bot with 100GB share size and 3 slots
-	super("ExampleBot", "127.0.0.1", 9006, 10006, "", "This example bot", "LAN(T1)8", "", "107374182400", 3, 6, false, System.out);
-	try {
-	    connect("127.0.0.1", 1411); //my local hub, change it to whatever yours is/
-	} catch (BotException e) {
-	    System.out.println("Error:" + e);
-	} catch (Exception e) {
-	    System.out.println(e);
-	}
-    }
-
-    /**
-     * Prints on main chat that we are here and starts flood thread.
-     */
-    public void onConnect() {
-	tt = new FloodMessageThread(this, 1000 * 60 * 10);
-	tt.start();
-	try {
-	    SendPublicMessage("Hi, I'm example ExampleBot. I have been created using jDCBot ( http://jdcbot.sourceforget.net )");
-	} catch (Exception e) {}
-    }
-
-    /**
-     * Simple example how to use GoogleCalculation and static commands from database.
-     * Bot will only detect two commands on main chat:
-     * +help (from database, StaticCommands class) and 
-     * +calc (in form of e.g. '+calc 1+2*3', GoogleCalculation class)
-     */
-    public void onPublicMessage(String user, String message) {
-	//examine if command starts with +calc (you could put more commands here
-	//in 'else if' construction
-	if (message.toLowerCase().startsWith("+calc ")) {
-	    String eq = message.substring(message.indexOf(" ") + 1, message.length());
-	    try {
-		Thread t = new Thread(new GoogleCalculation(this, eq));
-		t.start();
-	    } catch (Exception e) {}
-	} else
-	//if there were no command recognized above, try to get command from database
-	if (message.startsWith("+")) { //we are calling sql queries only if it starts with '+' for optimization
-	    //get only command (not including space if it exist nor anything after it)
-	    String only_cmd = ((message.indexOf(' ')) != -1) ? (message.substring(0, message.indexOf(' '))) : message;
-	    String output = static_cmds.parseCommand(only_cmd);
-	    if (output.length() != 0) { //if command exist in database
+	public ExampleBot() throws IOException {
+		//constructs our bot with 100GB share size and 3 slots
+		super("ExampleBot", "127.0.0.1", 9006, 10006, "", "This example bot", "LAN(T1)8", "", "107374182400", 3, 6, false);
 		try {
-		    SendPublicMessage(output);
+			connect("127.0.0.1", 1411); //my local hub, change it to whatever yours is/
+		} catch (BotException e) {
+			logger.error("Exception in ExampleBot()", e);
+		} catch (Exception e) {
+			logger.error("Exception in ExampleBot()", e);
+		}
+	}
+
+	/**
+	 * Prints on main chat that we are here and starts flood thread.
+	 */
+	public void onConnect() {
+		tt = new FloodMessageThread(this, 1000 * 60 * 10);
+		tt.start();
+		try {
+			SendPublicMessage("Hi, I'm example ExampleBot. I have been created using jDCBot ( http://jdcbot.sourceforget.net )");
 		} catch (Exception e) {}
-	    }
 	}
-    }
 
-    /**
-     * Sends user who wants to talk to us a feedback that we're (still) stupid.
-     */
-    public void onPrivateMessage(String user, String message) {
-	try {
-	    SendPrivateMessage(user, "I don't know how to talk anything...yet. ;)");
-	} catch (Exception e) {}
-    }
-
-    public void onDisconnect() {
-	super.onDisconnect();
-	log.println("Disconnected from the hub");
-	tt.stopIt();
-    }
-
-    public static void main(String[] args) {
-	try {
-	    new ExampleBot();
-	} catch (IOException e) {
-	    e.printStackTrace();
+	/**
+	 * Simple example how to use GoogleCalculation and static commands from database.
+	 * Bot will only detect two commands on main chat:
+	 * +help (from database, StaticCommands class) and 
+	 * +calc (in form of e.g. '+calc 1+2*3', GoogleCalculation class)
+	 */
+	public void onPublicMessage(String user, String message) {
+		//examine if command starts with +calc (you could put more commands here
+		//in 'else if' construction
+		if (message.toLowerCase().startsWith("+calc ")) {
+			String eq = message.substring(message.indexOf(" ") + 1, message.length());
+			try {
+				Thread t = new Thread(new GoogleCalculation(this, eq));
+				t.start();
+			} catch (Exception e) {}
+		} else
+			//if there were no command recognized above, try to get command from database
+			if (message.startsWith("+")) { //we are calling sql queries only if it starts with '+' for optimization
+				//get only command (not including space if it exist nor anything after it)
+				String only_cmd = ((message.indexOf(' ')) != -1) ? (message.substring(0, message.indexOf(' '))) : message;
+				String output = static_cmds.parseCommand(only_cmd);
+				if (output.length() != 0) { //if command exist in database
+					try {
+						SendPublicMessage(output);
+					} catch (Exception e) {}
+				}
+			}
 	}
-    }
+
+	/**
+	 * Sends user who wants to talk to us a feedback that we're (still) stupid.
+	 */
+	public void onPrivateMessage(String user, String message) {
+		try {
+			SendPrivateMessage(user, "I don't know how to talk anything...yet. ;)");
+		} catch (Exception e) {}
+	}
+
+	public void onDisconnect() {
+		super.onDisconnect();
+		logger.info("Disconnected from the hub");
+		tt.stopIt();
+	}
+
+	public static void main(String[] args) {
+		try {
+			new ExampleBot();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 }

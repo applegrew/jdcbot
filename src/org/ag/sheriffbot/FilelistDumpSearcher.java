@@ -384,6 +384,5 @@ public class FilelistDumpSearcher {
 	private String serializeEntity(int index, String s) {
 	    return "i:" + index + ";s:" + s.length() + ":\"" + s + "\";";
 	}
-
     }
 }

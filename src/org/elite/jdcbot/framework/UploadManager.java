@@ -26,6 +26,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+
 /**
  * Created on 26-May-08<br>
  * Manages all the uploads to all the users.
@@ -37,120 +39,119 @@ import java.util.Map;
  *
  * @author AppleGrew
  * @since 0.7
- * @version 0.1.1
+ * @version 0.1.2
  */
 public class UploadManager extends DCIO {
-    private Map<String, UploadHandler> allUH;
-    private jDCBot jdcbot;
+	private static final Logger logger = GlobalObjects.getLogger(UploadManager.class);
+	private Map<String, UploadHandler> allUH;
+	private jDCBot jdcbot;
 
-    UploadManager(jDCBot bot) {
-	jdcbot = bot;
-	allUH = Collections.synchronizedMap(new HashMap<String, UploadHandler>());
-    }
+	UploadManager(jDCBot bot) {
+		jdcbot = bot;
+		allUH = Collections.synchronizedMap(new HashMap<String, UploadHandler>());
+	}
 
-    synchronized void close() {
-	Collection<UploadHandler> uh = allUH.values();
-	synchronized (allUH) {
-	    for (UploadHandler u : uh) {
-		try {
-		    u.close();
-		} catch (IOException e) {
-		    e.printStackTrace(jdcbot.log);
+	synchronized void close() {
+		Collection<UploadHandler> uh = allUH.values();
+		synchronized (allUH) {
+			for (UploadHandler u : uh) {
+				try {
+					u.close();
+				} catch (IOException e) {
+					logger.error("Exception in close()", e);
+				}
+			}
 		}
-	    }
-	}
-    }
-
-    synchronized void cancelUpoad(User u) {
-	UploadHandler uh = allUH.get(u.username());
-	if (uh != null)
-	    uh.cancelUpload();
-    }
-
-    synchronized void tasksComplete(UploadHandler uh) {
-	allUH.remove(uh.getUserName());
-    }
-
-    synchronized int getAllUHCount() {
-	return allUH.size();
-    }
-
-    /**
-     * Uploads to passive user <i>user</i>.
-     * @param user
-     * @throws BotException
-     */
-    void uploadPassive(String user) throws BotException {
-	if (!jdcbot.isConnected()) {
-	    throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
-	}
-	if (!jdcbot.UserExist(user)) {
-	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
-	}
-	if (jdcbot.getUser(user).isUploadToUserBlocked()) {
-	    throw new BotException(BotException.Error.UPLOAD_TO_USER_BLOCKED);
 	}
 
-	Socket socket = null;
-	try {
-	    socket = jdcbot.initConnectToMe(user, "Upload");
-	} catch (Exception be) {
-	    jdcbot.log.println("Exception in DownloadHandler thread: " + be.getMessage());
-	    be.printStackTrace(jdcbot.log);
-	    return;
-	}
-	UploadHandler uh;
-	synchronized (allUH) {
-	    if (!allUH.containsKey(user)) {
-		uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
-		allUH.put(user, uh);
-	    } else
-		uh = allUH.get(user);
-	}
-	uh.startUploads();
-    }
-
-    /**
-     * Uploads to active user <i>user</i>.
-     * @param user
-     * @param socket
-     * @param N
-     * @param key
-     * @throws BotException
-     */
-    void upload(String user, Socket socket, int N, String key) throws BotException {
-	if (!jdcbot.isConnected()) {
-	    throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
-	}
-	if (!jdcbot.UserExist(user)) {
-	    throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
-	}
-	if (jdcbot.getUser(user).isUploadToUserBlocked()) {
-	    throw new BotException(BotException.Error.UPLOAD_TO_USER_BLOCKED);
+	synchronized void cancelUpoad(User u) {
+		UploadHandler uh = allUH.get(u.username());
+		if (uh != null)
+			uh.cancelUpload();
 	}
 
-	String buffer;
-
-	try {
-	    if (N != 0)
-		N--;
-	    buffer = "$Supports " + jdcbot.getBotClientProtoSupports() + "|$Direction Upload " + N + "|$Key " + key + "|";
-	    SendCommand(buffer, socket);
-	    jdcbot.log.println("From bot: " + buffer);
-	} catch (Exception e) {
-	    jdcbot.log.println("Exception by SendCommand in upload(): " + e.getMessage());
-	    e.printStackTrace(jdcbot.log);
+	synchronized void tasksComplete(UploadHandler uh) {
+		allUH.remove(uh.getUserName());
 	}
 
-	UploadHandler uh;
-	synchronized (allUH) {
-	    if (!allUH.containsKey(user)) {
-		uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
-		allUH.put(user, uh);
-	    } else
-		uh = allUH.get(user);
+	synchronized int getAllUHCount() {
+		return allUH.size();
 	}
-	uh.startUploads();
-    }
+
+	/**
+	 * Uploads to passive user <i>user</i>.
+	 * @param user
+	 * @throws BotException
+	 */
+	void uploadPassive(String user) throws BotException {
+		if (!jdcbot.isConnected()) {
+			throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
+		}
+		if (!jdcbot.UserExist(user)) {
+			throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
+		}
+		if (jdcbot.getUser(user).isUploadToUserBlocked()) {
+			throw new BotException(BotException.Error.UPLOAD_TO_USER_BLOCKED);
+		}
+
+		Socket socket = null;
+		try {
+			socket = jdcbot.initConnectToMe(user, "Upload");
+		} catch (Exception be) {
+			logger.error("Exception in DownloadHandler thread: " + be.getMessage(), be);
+			return;
+		}
+		UploadHandler uh;
+		synchronized (allUH) {
+			if (!allUH.containsKey(user)) {
+				uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
+				allUH.put(user, uh);
+			} else
+				uh = allUH.get(user);
+		}
+		uh.startUploads();
+	}
+
+	/**
+	 * Uploads to active user <i>user</i>.
+	 * @param user
+	 * @param socket
+	 * @param N
+	 * @param key
+	 * @throws BotException
+	 */
+	void upload(String user, Socket socket, int N, String key) throws BotException {
+		if (!jdcbot.isConnected()) {
+			throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
+		}
+		if (!jdcbot.UserExist(user)) {
+			throw new BotException(BotException.Error.USERNAME_NOT_FOUND);
+		}
+		if (jdcbot.getUser(user).isUploadToUserBlocked()) {
+			throw new BotException(BotException.Error.UPLOAD_TO_USER_BLOCKED);
+		}
+
+		String buffer;
+
+		try {
+			if (N != 0)
+				N--;
+			buffer = "$Supports " + jdcbot.getBotClientProtoSupports() + "|$Direction Upload " + N + "|$Key " + key + "|";
+			SendCommand(buffer, socket);
+			logger.debug("From bot: " + buffer);
+		} catch (Exception e) {
+			logger.error("Exception by SendCommand in upload(): " + e.getMessage(), e);
+		}
+
+		UploadHandler uh;
+		synchronized (allUH) {
+			if (!allUH.containsKey(user)) {
+				uh = new UploadHandler(jdcbot.getUser(user), socket, jdcbot, this);
+				allUH.put(user, uh);
+			} else
+				uh = allUH.get(user);
+		}
+		uh.startUploads();
+	}
 
 }

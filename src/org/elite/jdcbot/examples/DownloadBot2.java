@@ -29,9 +29,11 @@ import java.util.Vector;
 
 import org.elite.jdcbot.framework.BotException;
 import org.elite.jdcbot.framework.DUEntity;
+import org.elite.jdcbot.framework.GlobalObjects;
 import org.elite.jdcbot.framework.User;
 import org.elite.jdcbot.framework.jDCBot;
 import org.elite.jdcbot.util.OutputEntityStream;
+import org.slf4j.Logger;
 
 /**
  * Created on 02-Jun-08<br>
@@ -53,182 +55,181 @@ import org.elite.jdcbot.util.OutputEntityStream;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.2
  */
 public class DownloadBot2 extends jDCBot {
-    List<DUEntity> allDU;
-    private long transferLimit = 0;
+	private static final Logger logger = GlobalObjects.getLogger(DownloadBot2.class);
+	List<DUEntity> allDU;
+	private long transferLimit = 0;
 
-    public DownloadBot2() throws IOException {
-	super("DownloadBot2", //Bot's name
-		"127.0.0.1", //Bot's IP
-		9020, //Bot's listen port
-		10020, //Bot's listen port for UDP packets
-		"", //Password
-		"I Download U Really!", //Description
-		"LAN(T1)1", //Connection type
-		"", //Email
-		"0", //Share size in bytes
-		3, //No. of upload slots
-		3, //No of download slots.
-		false, //Is passive
-		System.out //PrintStream where debug messages will go
-	);
+	public DownloadBot2() throws IOException {
+		super("DownloadBot2", //Bot's name
+				"127.0.0.1", //Bot's IP
+				9020, //Bot's listen port
+				10020, //Bot's listen port for UDP packets
+				"", //Password
+				"I Download U Really!", //Description
+				"LAN(T1)1", //Connection type
+				"", //Email
+				"0", //Share size in bytes
+				3, //No. of upload slots
+				3, //No of download slots.
+				false //Is passive
+		);
 
-	try {
-	    connect("127.0.0.1", 1411); //Connecting to hub
-	} catch (BotException e) {
-	    e.printStackTrace(log);
-	    terminate();
-	} catch (IOException e) {
-	    e.printStackTrace(log);
-	    terminate();
-	}
-
-	allDU = new Vector<DUEntity>();
-    }
-
-    private void pm(String user, String msg) {
-	try {
-	    SendPrivateMessage(user, msg);
-	} catch (IOException e) {
-	    e.printStackTrace(log);
-	}
-    }
-
-    protected void onPrivateMessage(String user, String msg) {
-	msg = msg.trim();
-
-	if (UserExist(user)) {
-	    if (msg.equals("+quit") || msg.equals("quit")) {
-		terminate();
-		return;
-	    } else if (msg.startsWith("download ") || msg.startsWith("cancel ")) {
-		boolean download = msg.startsWith("download ");
-		msg = msg.substring(msg.indexOf(' ')).trim();
-
-		Query Q[] = getSegmentedQuery(msg.substring(msg.indexOf('?') + 1));
-		if (Q == null) {
-		    pm(user, "Error! Maybe the URI is not in proper format");
-		    return;
+		try {
+			connect("127.0.0.1", 1411); //Connecting to hub
+		} catch (BotException e) {
+			logger.error("Exception in DownloadBot2()", e);
+			terminate();
+		} catch (IOException e) {
+			logger.error("Exception in DownloadBot2()", e);
+			terminate();
 		}
 
-		String tth = null, name = null;
-		long size = 0;
-		for (Query q : Q) {
-		    if (q.query.equalsIgnoreCase("xt")) {
-			tth = q.value.substring(q.value.lastIndexOf(':') + 1);
-		    } else if (q.query.equalsIgnoreCase("xl")) {
-			try {
-			    size = Long.parseLong(q.value);
-			} catch (NumberFormatException e) {
-			    pm(user, "Please enter a valid magnet uri. Error occured while trying to parse file size");
-			    return;
-			}
-		    } else if (q.query.equalsIgnoreCase("dn")) {
-			name = q.value.replace('+', ' ');
-		    }
+		allDU = new Vector<DUEntity>();
+	}
+
+	private void pm(String user, String msg) {
+		try {
+			SendPrivateMessage(user, msg);
+		} catch (IOException e) {
+			logger.error("Exception in pm()", e);
+		}
+	}
+
+	protected void onPrivateMessage(String user, String msg) {
+		msg = msg.trim();
+
+		if (UserExist(user)) {
+			if (msg.equals("+quit") || msg.equals("quit")) {
+				terminate();
+				return;
+			} else if (msg.startsWith("download ") || msg.startsWith("cancel ")) {
+				boolean download = msg.startsWith("download ");
+				msg = msg.substring(msg.indexOf(' ')).trim();
+
+				Query Q[] = getSegmentedQuery(msg.substring(msg.indexOf('?') + 1));
+				if (Q == null) {
+					pm(user, "Error! Maybe the URI is not in proper format");
+					return;
+				}
+
+				String tth = null, name = null;
+				long size = 0;
+				for (Query q : Q) {
+					if (q.query.equalsIgnoreCase("xt")) {
+						tth = q.value.substring(q.value.lastIndexOf(':') + 1);
+					} else if (q.query.equalsIgnoreCase("xl")) {
+						try {
+							size = Long.parseLong(q.value);
+						} catch (NumberFormatException e) {
+							pm(user, "Please enter a valid magnet uri. Error occured while trying to parse file size");
+							return;
+						}
+					} else if (q.query.equalsIgnoreCase("dn")) {
+						name = q.value.replace('+', ' ');
+					}
+				}
+
+				if (size <= 0) {
+					pm(user, "Invalid value of file size: " + size + ". Make sure you have entered a valid magnet uri.");
+					return;
+				}
+				if (tth == null || name == null) {
+					pm(user, "Error occured during parsing the magnet uri. Make sure this is valid.");
+					return;
+				}
+
+				DUEntity due = new DUEntity(DUEntity.Type.FILE, tth, 0, size);
+				due.setSetting(DUEntity.AUTO_PREFIX_TTH_SETTING);
+
+				if (download) {//Start download
+					File file = new File(name);
+					if (file.exists()) {
+						pm(user, "Cannot download. A file with this name already exists in download directory.");
+						return;
+					}
+
+					try {
+						due.os(new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(file)), size, transferLimit));
+					} catch (FileNotFoundException e) {
+						logger.error("Exception in onPrivateMessage()", e);
+						return;
+					}
+
+					allDU.add(due);
+
+					try {
+						getUser(user).download(due);
+					} catch (BotException e) {
+						logger.error("Exception in onPrivateMessage()", e);
+					}
+				} else { //Cancel download
+					getUser(user).cancelDownload(due);
+					allDU.remove(due);
+				}
+
+			} else if (msg.startsWith("limit ")) {
+				msg = msg.substring(msg.indexOf(' ')).trim();
+				transferLimit = (long) (Double.parseDouble(msg) * 1024 * 1024);
+				pm(user, "New Transfer Limit is now " + msg + " MBps");
+
+				for (DUEntity due : allDU) {
+					if (due.os() instanceof OutputEntityStream) {
+						OutputEntityStream des = (OutputEntityStream) due.os();
+						des.setTransferLimit(transferLimit);
+					}
+				}
+			} else
+				pm(user, msg.substring(0, msg.indexOf(' ') == -1 ? msg.length() : msg.indexOf(' ')) + "? I know of no such command.");
+		}
+	}
+
+	private Query[] getSegmentedQuery(String query) {
+		Vector<Query> Q = new Vector<Query>();
+		String qs[] = query.split("&");
+		for (String q : qs) {
+			String e[] = q.split("=");
+			Q.add(new Query(e[0], e.length < 2 ? null : e[1]));
+		}
+		return Q.toArray(new Query[0]);
+	}
+
+	protected void onDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
+		pm(user.username(), "I just now "
+				+ (success ? "successfully" : "unsuccessfully")
+				+ " completed download of "
+				+ due.file()
+				+ " from you."
+				+ "Average transfer rate was "
+				+ (due.os() instanceof OutputEntityStream ? ((OutputEntityStream) due.os()).getTransferRate() / 1024 / 1024 + " MBps"
+						: "N/A"));
+		if (!success) {
+			pm(user.username(), "I got this exception: " + e.getMessage());
+		}
+		allDU.remove(due);
+	}
+
+	private class Query {
+		public Query(String q, String v) {
+			query = q;
+			value = v;
 		}
 
-		if (size <= 0) {
-		    pm(user, "Invalid value of file size: " + size + ". Make sure you have entered a valid magnet uri.");
-		    return;
+		public String query;
+		public String value;
+
+		public String toString() {
+			return query + " = " + value;
 		}
-		if (tth == null || name == null) {
-		    pm(user, "Error occured during parsing the magnet uri. Make sure this is valid.");
-		    return;
+	}
+
+	public static void main(String[] args) {
+		try {
+			new DownloadBot2();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
-
-		DUEntity due = new DUEntity(DUEntity.Type.FILE, tth, 0, size);
-		due.setSetting(DUEntity.AUTO_PREFIX_TTH_SETTING);
-
-		if (download) {//Start download
-		    File file = new File(name);
-		    if (file.exists()) {
-			pm(user, "Cannot download. A file with this name already exists in download directory.");
-			return;
-		    }
-
-		    try {
-			due.os(new OutputEntityStream(new BufferedOutputStream(new FileOutputStream(file)), size, transferLimit));
-		    } catch (FileNotFoundException e) {
-			e.printStackTrace(log);
-			return;
-		    }
-
-		    allDU.add(due);
-
-		    try {
-			getUser(user).download(due);
-		    } catch (BotException e) {
-			e.printStackTrace(log);
-		    }
-		} else { //Cancel download
-		    getUser(user).cancelDownload(due);
-		    allDU.remove(due);
-		}
-
-	    } else if (msg.startsWith("limit ")) {
-		msg = msg.substring(msg.indexOf(' ')).trim();
-		transferLimit = (long) (Double.parseDouble(msg) * 1024 * 1024);
-		pm(user, "New Transfer Limit is now " + msg + " MBps");
-
-		for (DUEntity due : allDU) {
-		    if (due.os() instanceof OutputEntityStream) {
-			OutputEntityStream des = (OutputEntityStream) due.os();
-			des.setTransferLimit(transferLimit);
-		    }
-		}
-	    } else
-		pm(user, msg.substring(0, msg.indexOf(' ') == -1 ? msg.length() : msg.indexOf(' ')) + "? I know of no such command.");
 	}
-    }
-
-    private Query[] getSegmentedQuery(String query) {
-	Vector<Query> Q = new Vector<Query>();
-	String qs[] = query.split("&");
-	for (String q : qs) {
-	    String e[] = q.split("=");
-	    Q.add(new Query(e[0], e.length < 2 ? null : e[1]));
-	}
-	return Q.toArray(new Query[0]);
-    }
-
-    protected void onDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
-	pm(user.username(), "I just now "
-		+ (success ? "successfully" : "unsuccessfully")
-		+ " completed download of "
-		+ due.file()
-		+ " from you."
-		+ "Average transfer rate was "
-		+ (due.os() instanceof OutputEntityStream ? ((OutputEntityStream) due.os()).getTransferRate() / 1024 / 1024 + " MBps"
-			: "N/A"));
-	if (!success) {
-	    pm(user.username(), "I got this exception: " + e.getMessage());
-	}
-	allDU.remove(due);
-    }
-
-    private class Query {
-
-	public Query(String q, String v) {
-	    query = q;
-	    value = v;
-	}
-
-	public String query;
-	public String value;
-
-	public String toString() {
-	    return query + " = " + value;
-	}
-    }
-
-    public static void main(String[] args) {
-	try {
-	    new DownloadBot2();
-	} catch (IOException e) {
-	    e.printStackTrace();
-	}
-    }
 }

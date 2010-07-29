@@ -20,7 +20,6 @@
 package org.elite.jdcbot.framework;
 
 import java.io.IOException;
-import java.io.PrintStream;
 
 import org.elite.jdcbot.shareframework.SearchResultSet;
 import org.elite.jdcbot.shareframework.SearchSet;
@@ -39,7 +38,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1
+ * @version 0.1.1
  */
 abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDCBotListener {
 
@@ -69,11 +68,11 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
      * @throws IOException 
      */
     public EventjDCBotAdapter(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
-	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog)
+	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive)
 	    throws IOException {
 
 	super(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
-		passive, outputLog);
+		passive);
     }
 
     /**

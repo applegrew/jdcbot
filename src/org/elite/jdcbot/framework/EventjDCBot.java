@@ -20,7 +20,6 @@
 package org.elite.jdcbot.framework;
 
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -90,11 +89,11 @@ abstract public class EventjDCBot extends jDCBot {
      * @throws IOException 
      */
     public EventjDCBot(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
-	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive, PrintStream outputLog)
+	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive)
 	    throws IOException {
 
 	super(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
-		passive, outputLog);
+		passive);
     }
 
     /**
@@ -166,7 +165,7 @@ abstract public class EventjDCBot extends jDCBot {
     final protected void onDisconnect() {
 	synchronized (_listeners) {
 	    for (EventjDCBotListener l : _listeners)
-		l.on_Disconnect(this); //Typo fixed. Patch (#3034176) contributed by im3w1l.
+		l.on_Connect(this);
 	}
     }
 

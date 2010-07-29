@@ -37,6 +37,7 @@ import java.util.List;
 
 import org.elite.jdcbot.shareframework.SearchSet;
 import org.elite.jdcbot.util.OutputEntityStream;
+import org.slf4j.Logger;
 
 /**
  * Created on 09-Jun-08<br>
@@ -47,9 +48,10 @@ import org.elite.jdcbot.util.OutputEntityStream;
  * 
  * @author AppleGrew
  * @since 1.0
- * @version 0.1
+ * @version 0.1.1
  */
 public class DownloadCentral implements Runnable {
+	private static final Logger logger = GlobalObjects.getLogger(DownloadCentral.class);
     private static final String queueFileName = "queue";
 
     public static enum State {
@@ -115,13 +117,13 @@ public class DownloadCentral implements Runnable {
 	} catch (FileNotFoundException e) {
 
 	} catch (IOException e) {
-	    e.printStackTrace(GlobalObjects.log);
+	    logger.error("In init().", e);
 	    qf.delete();
 	} catch (ClassNotFoundException e) {
-	    e.printStackTrace(GlobalObjects.log);
+		logger.error("In init().", e);
 	    qf.delete();
 	} catch (InstantiationException e) {
-	    e.printStackTrace(GlobalObjects.log);
+		logger.error("In init().", e);
 	    qf.delete();
 	}
     }
@@ -138,9 +140,9 @@ public class DownloadCentral implements Runnable {
 	try {
 	    saveQ(new BufferedOutputStream(new FileOutputStream(boi.getMiscDir() + File.separator + queueFileName)));
 	} catch (FileNotFoundException e) {
-	    e.printStackTrace(GlobalObjects.log);
+		logger.error("In close().", e);
 	} catch (IOException e) {
-	    e.printStackTrace(GlobalObjects.log);
+		logger.error("In close().", e);
 	}
     }
 
@@ -153,7 +155,7 @@ public class DownloadCentral implements Runnable {
      */
     public void startNewQueueProcessThread() {
 	if (th != null) {
-	    GlobalObjects.log.println("DownloadCentral Threads already running.");
+	    logger.warn("DownloadCentral Threads already running.");
 	} else {
 	    th = new Thread(this, "DownloadCentral Queue Processing Thread");
 	    run = true;
@@ -347,10 +349,10 @@ public class DownloadCentral implements Runnable {
 				break;
 			    } catch (BotException e) {
 				if (isRecoverableException(e.getError()))
-				    GlobalObjects.log.println("Exception (" + e.getMessage()
-					    + ")by DownloadManager. Anyway this is not serious, continuing.");
+				    logger.warn("Exception (" + e.getMessage()
+					    + ")by DownloadManager. Anyway this is not serious, continuing.", e);
 				else {
-				    GlobalObjects.log.println("Un-recoverable exception: " + e.getMessage() + ". Removing this source.");
+				    logger.error("Un-recoverable exception: " + e.getMessage() + ". Removing this source.", e);
 				    d.removeSrc(new Src(u, boi));
 				}
 			    }
@@ -528,13 +530,13 @@ public class DownloadCentral implements Runnable {
      * @throws IOException Ths is thrown if there is any error while writng to the stream.
      */
     public void saveQ(OutputStream out) throws IOException {
-	GlobalObjects.log.println("DownloadQ saving...");
+	logger.debug("DownloadQ saving...");
 	ObjectOutputStream obj_out = new ObjectOutputStream(out);
 	synchronized (toDownload) {
 	    obj_out.writeObject(new DownloadQ(toDownload));
 	}
 	obj_out.close();
-	GlobalObjects.log.println("DownloadQ saved.");
+	logger.debug("DownloadQ saved.");
     }
 
     /**
@@ -550,7 +552,7 @@ public class DownloadCentral implements Runnable {
      * @throws InstantiationException The read object is not instance of DownloadCentral.
      */
     public void loadQ(InputStream in) throws IOException, ClassNotFoundException, InstantiationException {
-	GlobalObjects.log.println("DownloadQ loading...");
+	logger.debug("DownloadQ loading...");
 	ObjectInputStream obj_in = new ObjectInputStream(in);
 	Object obj = obj_in.readObject();
 	obj_in.close();
@@ -563,7 +565,7 @@ public class DownloadCentral implements Runnable {
 	    synchronized (toDownload) {
 		toDownload = dq;
 	    }
-	    GlobalObjects.log.println("DownloadQ loaded.");
+	    logger.debug("DownloadQ loaded.");
 	} else
 	    throw new InstantiationException("The object read is not instance of DownloadCentral.DownloadQ.");
     }
@@ -682,7 +684,7 @@ public class DownloadCentral implements Runnable {
 		dos.setTransferLimit(dc.transferRate);
 		dos.setTotalStreamLength(due.len());
 	    } catch (FileNotFoundException e) {
-		e.printStackTrace(GlobalObjects.log);
+	    	logger.error("In reset().", e);
 	    }
 	    due.os(dos);
 	    for (Src s : srcs)
@@ -775,7 +777,7 @@ public class DownloadCentral implements Runnable {
 			try {
 			    boi.getShareManager().downloadOthersFileList(u);
 			} catch (BotException e) {
-			    e.printStackTrace(GlobalObjects.log);
+				logger.error("In reset().", e);
 			}
 		} else {
 		    User u = ((jDCBot) boi).getUser(username);
@@ -783,7 +785,7 @@ public class DownloadCentral implements Runnable {
 			try {
 			    boi.getShareManager().downloadOthersFileList(u);
 			} catch (BotException e) {
-			    e.printStackTrace(GlobalObjects.log);
+				logger.error("In reset().", e);
 			}
 		}
 	    }
@@ -857,7 +859,7 @@ public class DownloadCentral implements Runnable {
 		    try {
 			boi.Search(ss);
 		    } catch (IOException e) {
-			e.printStackTrace(GlobalObjects.log);
+		    	logger.error("In run().", e);
 		    }
 		}
 

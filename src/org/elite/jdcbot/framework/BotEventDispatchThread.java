@@ -25,6 +25,7 @@ import java.util.List;
 
 import org.elite.jdcbot.shareframework.SearchResultSet;
 import org.elite.jdcbot.shareframework.SearchSet;
+import org.slf4j.Logger;
 
 /**
  * Created on 31-May-08
@@ -34,288 +35,289 @@ import org.elite.jdcbot.shareframework.SearchSet;
  * 
  */
 public class BotEventDispatchThread extends Thread {
-    private static enum Method {
-	onDownloadComplete,
-	onUploadComplete,
-	onUploadStart,
-	onUpdateMyInfo,
-	onDownloadStart,
-	onActiveSearch,
-	onPassiveSearch,
-	onChannelMessage,
-	onPrivateMessage,
-	onQuit,
-	onJoin,
-	onPublicMessage,
-	onDisconnect,
-	onBotQuit,
-	onConnect2Client,
-	onConnect,
-	onSearchResult
-    }
+	private static final Logger logger = GlobalObjects.getLogger(BotEventDispatchThread.class);
 
-    private List<DispatchEntity> dispatch;
-    private volatile boolean running;
-    private jDCBot _bot;
-
-    public BotEventDispatchThread(jDCBot bot) {
-	super("jDCBot-EventDispatchThread");
-	dispatch = Collections.synchronizedList(new ArrayList<DispatchEntity>());
-	_bot = bot;
-	running = true;
-	start();
-    }
-
-    public void run() {
-	while (running) {
-	    while (!dispatch.isEmpty()) {
-		DispatchEntity de = null;
-		de = dispatch.get(0);
-		dispatch.remove(0);
-
-		Method method = de.method;
-		Object args[] = de.params;
-
-		switch (method) {
-		    case onDownloadComplete:
-			BotException e = (BotException) getArg(args, 3);
-			boolean success = (Boolean) getArg(args, 2);
-			if (_bot.getDownloadCentral() != null) {
-			    e =
-				    _bot.getDownloadCentral().onDownloadFinished((User) getArg(args, 0), (DUEntity) getArg(args, 1),
-					    success, e);
-			    if (success) {
-				if (e != null)
-				    success = false;
-			    } else if (e == null)
-				continue;
-			}
-			_bot.onDownloadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
-
-			break;
-		    case onUploadComplete:
-			_bot.onUploadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2),
-				(BotException) getArg(args, 3));
-
-			break;
-		    case onUploadStart:
-			_bot.onUploadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
-
-			break;
-		    case onUpdateMyInfo:
-			_bot.onUpdateMyInfo((String) getArg(args, 0));
-
-			break;
-		    case onDownloadStart:
-			if (_bot.getDownloadCentral() != null)
-			    _bot.getDownloadCentral().onDownloadStart((DUEntity) getArg(args, 1), (User) getArg(args, 0));
-			_bot.onDownloadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
-
-			break;
-		    case onPassiveSearch:
-			_bot.onPassiveSearch((String) getArg(args, 0), (SearchSet) getArg(args, 1));
-
-			break;
-		    case onActiveSearch:
-			_bot.onActiveSearch((String) getArg(args, 0), (Integer) getArg(args, 1), (SearchSet) getArg(args, 2));
-
-			break;
-		    case onChannelMessage:
-			_bot.onChannelMessage((String) getArg(args, 0), (String) getArg(args, 1), (String) getArg(args, 2));
-
-			break;
-		    case onPrivateMessage:
-			_bot.onPrivateMessage((String) getArg(args, 0), (String) getArg(args, 1));
-
-			break;
-		    case onQuit:
-			_bot.onQuit((String) getArg(args, 0));
-
-			break;
-		    case onJoin:
-			_bot.onJoin((String) getArg(args, 0));
-
-			break;
-		    case onPublicMessage:
-			_bot.onPublicMessage((String) getArg(args, 0), (String) getArg(args, 1));
-
-			break;
-		    case onDisconnect:
-			_bot.onDisconnect();
-
-			break;
-		    case onBotQuit:
-			_bot.onBotQuit();
-
-			break;
-		    case onConnect2Client:
-			_bot.onConnect2Client();
-
-			break;
-		    case onConnect:
-			_bot.onConnect();
-
-			break;
-		    case onSearchResult:
-			_bot.onSearchResult((String) getArg(args, 0), (String) getArg(args, 1), (Integer) getArg(args, 2),
-				(SearchResultSet) getArg(args, 3), (Integer) getArg(args, 4), (Integer) getArg(args, 5), (String) getArg(
-					args, 6));
-
-			break;
-		    default:
-			try {
-			    throw new NoSuchMethodException("Method :" + method);
-			} catch (NoSuchMethodException nsme) {
-			    _bot.log.println("No method " + method + " found.");
-			    nsme.printStackTrace();
-			}
-		}
-	    }
-	    try {
-		if (dispatch.isEmpty()) {
-		    sleep(100L);
-		}
-	    } catch (InterruptedException e) {}
+	private static enum Method {
+		onDownloadComplete,
+		onUploadComplete,
+		onUploadStart,
+		onUpdateMyInfo,
+		onDownloadStart,
+		onActiveSearch,
+		onPassiveSearch,
+		onChannelMessage,
+		onPrivateMessage,
+		onQuit,
+		onJoin,
+		onPublicMessage,
+		onDisconnect,
+		onBotQuit,
+		onConnect2Client,
+		onConnect,
+		onSearchResult
 	}
-    }
 
-    private Object getArg(Object args[], int i) {
-	return (args[i] == null ? null : args[i]);
-    }
+	private List<DispatchEntity> dispatch;
+	private volatile boolean running;
+	private jDCBot _bot;
 
-    public void stopIt() {
-	running = false;
-	this.interrupt();
-    }
+	public BotEventDispatchThread(jDCBot bot) {
+		super("jDCBot-EventDispatchThread");
+		dispatch = Collections.synchronizedList(new ArrayList<DispatchEntity>());
+		_bot = bot;
+		running = true;
+		start();
+	}
 
-    private class DispatchEntity {
-	public Method method;
-	public Object params[];
-    }
+	public void run() {
+		while (running) {
+			while (!dispatch.isEmpty()) {
+				DispatchEntity de = null;
+				de = dispatch.get(0);
+				dispatch.remove(0);
 
-    private void addToDispath(DispatchEntity de) {
-	dispatch.add(de);
-	this.interrupt();
-    }
+				Method method = de.method;
+				Object args[] = de.params;
 
-    //*********Proxy funtions*********/
-    void callOnDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onDownloadComplete;
-	de.params = new Object[] { user, due, success, e };
-	addToDispath(de);
-    }
+				switch (method) {
+				case onDownloadComplete:
+					BotException e = (BotException) getArg(args, 3);
+					boolean success = (Boolean) getArg(args, 2);
+					if (_bot.getDownloadCentral() != null) {
+						e =
+							_bot.getDownloadCentral().onDownloadFinished((User) getArg(args, 0), (DUEntity) getArg(args, 1),
+									success, e);
+						if (success) {
+							if (e != null)
+								success = false;
+						} else if (e == null)
+							continue;
+					}
+					_bot.onDownloadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), success, e);
 
-    void callOnUploadComplete(User user, DUEntity due, boolean success, BotException e) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onUploadComplete;
-	de.params = new Object[] { user, due, success, e };
-	addToDispath(de);
-    }
+					break;
+				case onUploadComplete:
+					_bot.onUploadComplete((User) getArg(args, 0), (DUEntity) getArg(args, 1), (Boolean) getArg(args, 2),
+							(BotException) getArg(args, 3));
 
-    void callOnUploadStart(User user, DUEntity due) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onUploadStart;
-	de.params = new Object[] { user, due };
-	addToDispath(de);
-    }
+					break;
+				case onUploadStart:
+					_bot.onUploadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
 
-    void callOnUpdateMyInfo(String user) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onUpdateMyInfo;
-	de.params = new Object[] { user };
-	addToDispath(de);
-    }
+					break;
+				case onUpdateMyInfo:
+					_bot.onUpdateMyInfo((String) getArg(args, 0));
 
-    void callOnDownloadStart(User user, DUEntity due) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onDownloadStart;
-	de.params = new Object[] { user, due };
-	addToDispath(de);
-    }
+					break;
+				case onDownloadStart:
+					if (_bot.getDownloadCentral() != null)
+						_bot.getDownloadCentral().onDownloadStart((DUEntity) getArg(args, 1), (User) getArg(args, 0));
+					_bot.onDownloadStart((User) getArg(args, 0), (DUEntity) getArg(args, 1));
 
-    void callOnPassiveSearch(String user, SearchSet search) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onPassiveSearch;
-	de.params = new Object[] { user, search };
-	addToDispath(de);
-    }
+					break;
+				case onPassiveSearch:
+					_bot.onPassiveSearch((String) getArg(args, 0), (SearchSet) getArg(args, 1));
 
-    void callOnActiveSearch(String ip, int port, SearchSet search) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onActiveSearch;
-	de.params = new Object[] { ip, port, search };
-	addToDispath(de);
-    }
+					break;
+				case onActiveSearch:
+					_bot.onActiveSearch((String) getArg(args, 0), (Integer) getArg(args, 1), (SearchSet) getArg(args, 2));
 
-    void callOnChannelMessage(String user, String channel, String message) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onChannelMessage;
-	de.params = new Object[] { user, channel, message };
-	addToDispath(de);
-    }
+					break;
+				case onChannelMessage:
+					_bot.onChannelMessage((String) getArg(args, 0), (String) getArg(args, 1), (String) getArg(args, 2));
 
-    void callOnPrivateMessage(String user, String message) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onPrivateMessage;
-	de.params = new Object[] { user, message };
-	addToDispath(de);
-    }
+					break;
+				case onPrivateMessage:
+					_bot.onPrivateMessage((String) getArg(args, 0), (String) getArg(args, 1));
 
-    void callOnQuit(String user) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onQuit;
-	de.params = new Object[] { user };
-	addToDispath(de);
-    }
+					break;
+				case onQuit:
+					_bot.onQuit((String) getArg(args, 0));
 
-    void callOnJoin(String user) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onJoin;
-	de.params = new Object[] { user };
-	addToDispath(de);
-    }
+					break;
+				case onJoin:
+					_bot.onJoin((String) getArg(args, 0));
 
-    void callOnPublicMessage(String user, String message) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onPublicMessage;
-	de.params = new Object[] { user, message };
-	addToDispath(de);
-    }
+					break;
+				case onPublicMessage:
+					_bot.onPublicMessage((String) getArg(args, 0), (String) getArg(args, 1));
 
-    void callOnDisconnect() {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onDisconnect;
-	de.params = null;
-	addToDispath(de);
-    }
+					break;
+				case onDisconnect:
+					_bot.onDisconnect();
 
-    void callOnBotQuit() {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onBotQuit;
-	de.params = null;
-	addToDispath(de);
-    }
+					break;
+				case onBotQuit:
+					_bot.onBotQuit();
 
-    void callOnConnect2Client() {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onConnect2Client;
-	de.params = null;
-	addToDispath(de);
-    }
+					break;
+				case onConnect2Client:
+					_bot.onConnect2Client();
 
-    void callOnConnect() {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onConnect;
-	de.params = null;
-	addToDispath(de);
-    }
+					break;
+				case onConnect:
+					_bot.onConnect();
 
-    void callOnSearchResult(String senderNick, String senderIP, int senderPort, SearchResultSet result, int free_slots, int total_slots,
-	    String hubName) {
-	DispatchEntity de = new DispatchEntity();
-	de.method = Method.onSearchResult;
-	de.params = new Object[] { senderNick, senderIP, senderPort, result, free_slots, total_slots, hubName };
-	addToDispath(de);
-    }
+					break;
+				case onSearchResult:
+					_bot.onSearchResult((String) getArg(args, 0), (String) getArg(args, 1), (Integer) getArg(args, 2),
+							(SearchResultSet) getArg(args, 3), (Integer) getArg(args, 4), (Integer) getArg(args, 5), (String) getArg(
+									args, 6));
+
+					break;
+				default:
+					try {
+						throw new NoSuchMethodException("Method :" + method);
+					} catch (NoSuchMethodException nsme) {
+						logger.error("No method " + method + " found.", nsme);
+					}
+				}
+			}
+			try {
+				if (dispatch.isEmpty()) {
+					sleep(100L);
+				}
+			} catch (InterruptedException e) {}
+		}
+	}
+
+	private Object getArg(Object args[], int i) {
+		return (args[i] == null ? null : args[i]);
+	}
+
+	public void stopIt() {
+		running = false;
+		this.interrupt();
+	}
+
+	private class DispatchEntity {
+		public Method method;
+		public Object params[];
+	}
+
+	private void addToDispath(DispatchEntity de) {
+		dispatch.add(de);
+		this.interrupt();
+	}
+
+	//*********Proxy funtions*********/
+	void callOnDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onDownloadComplete;
+		de.params = new Object[] { user, due, success, e };
+		addToDispath(de);
+	}
+
+	void callOnUploadComplete(User user, DUEntity due, boolean success, BotException e) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onUploadComplete;
+		de.params = new Object[] { user, due, success, e };
+		addToDispath(de);
+	}
+
+	void callOnUploadStart(User user, DUEntity due) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onUploadStart;
+		de.params = new Object[] { user, due };
+		addToDispath(de);
+	}
+
+	void callOnUpdateMyInfo(String user) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onUpdateMyInfo;
+		de.params = new Object[] { user };
+		addToDispath(de);
+	}
+
+	void callOnDownloadStart(User user, DUEntity due) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onDownloadStart;
+		de.params = new Object[] { user, due };
+		addToDispath(de);
+	}
+
+	void callOnPassiveSearch(String user, SearchSet search) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onPassiveSearch;
+		de.params = new Object[] { user, search };
+		addToDispath(de);
+	}
+
+	void callOnActiveSearch(String ip, int port, SearchSet search) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onActiveSearch;
+		de.params = new Object[] { ip, port, search };
+		addToDispath(de);
+	}
+
+	void callOnChannelMessage(String user, String channel, String message) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onChannelMessage;
+		de.params = new Object[] { user, channel, message };
+		addToDispath(de);
+	}
+
+	void callOnPrivateMessage(String user, String message) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onPrivateMessage;
+		de.params = new Object[] { user, message };
+		addToDispath(de);
+	}
+
+	void callOnQuit(String user) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onQuit;
+		de.params = new Object[] { user };
+		addToDispath(de);
+	}
+
+	void callOnJoin(String user) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onJoin;
+		de.params = new Object[] { user };
+		addToDispath(de);
+	}
+
+	void callOnPublicMessage(String user, String message) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onPublicMessage;
+		de.params = new Object[] { user, message };
+		addToDispath(de);
+	}
+
+	void callOnDisconnect() {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onDisconnect;
+		de.params = null;
+		addToDispath(de);
+	}
+
+	void callOnBotQuit() {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onBotQuit;
+		de.params = null;
+		addToDispath(de);
+	}
+
+	void callOnConnect2Client() {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onConnect2Client;
+		de.params = null;
+		addToDispath(de);
+	}
+
+	void callOnConnect() {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onConnect;
+		de.params = null;
+		addToDispath(de);
+	}
+
+	void callOnSearchResult(String senderNick, String senderIP, int senderPort, SearchResultSet result, int free_slots, int total_slots,
+			String hubName) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onSearchResult;
+		de.params = new Object[] { senderNick, senderIP, senderPort, result, free_slots, total_slots, hubName };
+		addToDispath(de);
+	}
 }
