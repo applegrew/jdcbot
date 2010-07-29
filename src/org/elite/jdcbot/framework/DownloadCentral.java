@@ -48,7 +48,7 @@ import org.slf4j.Logger;
  * 
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.2
  */
 public class DownloadCentral implements Runnable {
 	private static final Logger logger = GlobalObjects.getLogger(DownloadCentral.class);
@@ -399,13 +399,21 @@ public class DownloadCentral implements Runnable {
 
     void onDownloadStart(DUEntity due, User u) {
 	Download d = getDforDUE(due);
-	//d should never be null here.
-	d.state = State.RUNNING;
+	//d should never be null here, except when downloading file list,
+	//which is initiated by DonwloadManager.
+	if( d != null ) {
+		d.state = State.RUNNING;
+	}
     }
 
     BotException onDownloadFinished(User user, DUEntity due, boolean success, BotException e) {
 	Download d = getDforDUE(due);
-	//d should never be null here
+	//d should never be null here, except when downloading file list,
+	//which is initiated by DonwloadManager.
+	if( d == null ) {
+		logger.debug("DownloadCentral.onDownloadFinished(): Download object not found for DUEntity = " + due);
+		return null;
+	}
 	if (success) {
 	    toDownload.remove(d);
 	    try {
