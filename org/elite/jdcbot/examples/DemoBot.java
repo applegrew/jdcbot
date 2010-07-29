@@ -55,7 +55,7 @@ import org.elite.jdcbot.util.OutputEntityStream;
 /**
  * Created on 11-Jun-08<br>
  * This class acts as demo to show you how to
- * use jDCBot framework by implement a near
+ * use jDCBot framework by implementing a near
  * full-fledged client. It doesn't have
  * user interface. The only way to interact
  * with it is sending commands to it by
@@ -809,7 +809,7 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
 	@Override
 	protected FLDir getOwnFL(User u, double certainity) {
 	    if ((u != null && certainity >= 0.9 && isBanned(u)) || u == null) {
-		//Bans uncoditionally if u==null, hence if bot is not Op then no search result will be returned
+		//Bans unconditionally if u==null, hence if bot is not Op then no search result will be returned
 		//if the searching user had not download file list from this bot.
 		return customFL;
 	    }
@@ -818,7 +818,7 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
     }
 
     public static void main(String args[]) {
-	//If insufficient number of command-line arguements are provided then
+	//If insufficient number of command-line arguments are provided then
 	//the following values are used. The command-line arguments expected are
 	//	owner's_username hubIP hubPort
 	String owner = "agApple";
@@ -875,12 +875,13 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
 
 	    shareManager.addListener(db);
 	    /*
-	     * Below two lines are WRONG they should been above
-	     * (see the line with 'CORRECT' comment) since DemoBot
-	     * has already been created and since mha didn't have
-	     * this ShareManager or DownloadCentral associated with
-	     * it hence DemoBot gets null and not them. Calling
-	     * setXXX() method is supposed to assign the said
+	     * Below two lines placements are WRONG. The ones marked
+	     * CORRECT are correct. You need to set ShareManager and
+	     * DownloadCentral in mha before 'connect' is called.
+	     * This is because DemoBot has already been created and
+	     * since mha didn't have this ShareManager or DownloadCentral
+	     * associated with it hence DemoBot gets null and not them.
+	     * Calling setXXX() method is supposed to assign the said
 	     * objects with all the jDCBot instances it has, but
 	     * we haven't yet called mha's connect() method so
 	     * the above DemoBot instance is still not known to mha,

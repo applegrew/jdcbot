@@ -58,7 +58,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1
+ * @version 0.1.1
  * @see EventjDCBotAdapter
  */
 abstract public class EventjDCBot extends jDCBot {
@@ -166,7 +166,7 @@ abstract public class EventjDCBot extends jDCBot {
     final protected void onDisconnect() {
 	synchronized (_listeners) {
 	    for (EventjDCBotListener l : _listeners)
-		l.on_Connect(this);
+		l.on_Disconnect(this); //Typo fixed. Patch (#3034176) contributed by im3w1l.
 	}
     }
 
