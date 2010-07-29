@@ -164,7 +164,6 @@ public class DownloadBot extends jDCBot {
     }
 
     private class Query {
-	public Query() {}
 
 	public Query(String q, String v) {
 	    query = q;

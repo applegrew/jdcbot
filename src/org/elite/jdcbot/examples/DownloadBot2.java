@@ -210,7 +210,6 @@ public class DownloadBot2 extends jDCBot {
     }
 
     private class Query {
-	public Query() {}
 
 	public Query(String q, String v) {
 	    query = q;

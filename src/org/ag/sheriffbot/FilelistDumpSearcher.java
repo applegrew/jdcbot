@@ -385,8 +385,5 @@ public class FilelistDumpSearcher {
 	    return "i:" + index + ";s:" + s.length() + ":\"" + s + "\";";
 	}
 
-	public Vector<String> getParsedData() {
-	    return results;
-	}
     }
 }

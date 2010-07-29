@@ -133,7 +133,7 @@ public class EventDispatchThread extends Thread {
      * any any argument to this parameter, it is a varag and will automatically set to null.<br></li>
      * </ul>
      */
-    public void call(Object owner, String method, Class param_types[], Object... args) {
+    public void call(Object owner, String method, Class<?> param_types[], Object... args) {
 	Method m = null;
 	try {
 	    m = owner.getClass().getMethod(method, param_types);

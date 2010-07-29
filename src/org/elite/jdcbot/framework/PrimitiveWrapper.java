@@ -38,7 +38,7 @@ public class PrimitiveWrapper<T> {
 	return _wrapperObject;
     }
 
-    public Class getObjectClass() {
+    public Class<?> getObjectClass() {
 	if (_wrapperObject instanceof Boolean)
 	    return boolean.class;
 	else if (_wrapperObject instanceof Integer)

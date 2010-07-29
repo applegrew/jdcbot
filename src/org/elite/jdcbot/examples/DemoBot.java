@@ -726,7 +726,6 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
     }
 
     private class Query {
-	public Query() {}
 
 	public Query(String q, String v) {
 	    query = q;
