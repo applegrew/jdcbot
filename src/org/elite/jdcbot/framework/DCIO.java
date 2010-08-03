@@ -19,7 +19,6 @@
  */
 package org.elite.jdcbot.framework;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +29,7 @@ import org.slf4j.Logger;
 
 /**
  * Created on 26-May-08<br>
- * The purpose of this class is to implement methods that are needed for IO easily send and recerive and parse commands.
+ * The purpose of this class is to implement methods that are needed for IO easily send and receive and parse commands.
  *
  * @author AppleGrew
  * @since 0.7
@@ -71,8 +70,10 @@ public class DCIO {
 	}
 
 	public final String ReadCommand(Socket socket) throws IOException {
-		//Buffering input stream for better performance. Artifact#2935124.
-		return ReadCommand(new BufferedInputStream(socket.getInputStream()));
+		//Removed BufferedInputStream from here,
+		//which was added as part of artifact#2934462.
+		//The local BufferedInputStream caused loss in data.
+		return ReadCommand(socket.getInputStream());
 	}
 
 	/**

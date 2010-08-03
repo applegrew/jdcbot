@@ -19,6 +19,11 @@
  */
 package org.elite.jdcbot.framework;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Properties;
+
+import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,9 +33,21 @@ import org.slf4j.LoggerFactory;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.3
  */
 public class GlobalObjects {
+	
+	static {
+		Properties props = new Properties();
+		try {
+			props.load(GlobalObjects.class.getResourceAsStream("/log4j.properties"));
+			PropertyConfigurator.configure(props);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 	
 	/**
 	 * Global logger.
@@ -41,7 +58,7 @@ public class GlobalObjects {
     /**
      * The definitive version number of this release of jDCBot.
      */
-    public static final String VERSION = "1.1.1";
+    public static final String VERSION = "1.1.2";
     /**
      * The name of the client.
      */

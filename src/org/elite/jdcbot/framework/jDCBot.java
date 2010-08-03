@@ -29,7 +29,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -60,7 +59,7 @@ import org.slf4j.Logger;
  * @author Kokanovic Branko
  * @author AppleGrew
  * @since 0.5
- * @version 1.0.1
+ * @version 1.0.2
  */
 public abstract class jDCBot extends InputThreadTarget implements UDPInputThreadTarget, BotInterface {
 	private static final Logger logger = GlobalObjects.getLogger(jDCBot.class);
@@ -83,8 +82,8 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	protected String miscDir;
 	protected String incompleteDir;
 
-	protected Socket socket = null;
-	protected ServerSocket socketServer = null;
+	protected BufferedSocket socket = null;
+	protected BufferedServerSocket socketServer = null;
 	protected DatagramSocket udpSocket = null;
 
 	InputStream input;
@@ -95,7 +94,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	protected UploadManager uploadManager;
 	/**
 	 * In constructor a default ShareManager is
-	 * intantiated. This can be set to a custom
+	 * instantiated. This can be set to a custom
 	 * sub-class of ShareManager if needed after
 	 * calling jDCBot's constructor by. You are 
 	 * advised to use the {@link #setShareManager(ShareManager)}
@@ -240,7 +239,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		if (isInMultiHubsMode())
 			socketServer = multiHubsAdapter.socketServer;
 		if (socketServer == null || socketServer.isClosed()) {
-			socketServer = new ServerSocket(_listenPort);
+			socketServer = new BufferedServerSocket(_listenPort);
 			socketServer.setSoTimeout(60000); // Wait for 60s before timing out.
 		}
 
@@ -257,7 +256,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @throws IIOException If the given path are not directories.
 	 * @throws InstantiationException The read object from 'fileListHash' is not instance of FLDir.
 	 * @throws ClassNotFoundException Class of FLDir serialized object cannot be found.
-	 * @throws IOException Error occured while reading from 'fileListHash'.
+	 * @throws IOException Error occurred while reading from 'fileListHash'.
 	 */
 	final public void setDirs(String path2DirForMiscData, String path2IncompleteDir) throws IIOException, FileNotFoundException,
 	IOException {
@@ -490,7 +489,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		_hubHostname = hostname;
 
 		// connect to server
-		socket = new Socket(hostname, port);
+		socket = new BufferedSocket(hostname, port);
 		input = socket.getInputStream();
 		output = socket.getOutputStream();
 		//breader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -588,29 +587,39 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		User u = um.getUser(user);
 
 		//connect to client
-		if (isInMultiHubsMode())
-			/*
-			 * The statement below is needed, so that multiple bots' simultaneous request for connection can be synchronised
-			 * because ServerSocket though allows multiple threads to simutaneously to listen but the packet received
-			 * will be sent to any one of the threads, myabe the one that requested to listen first gets the first
-			 * packet, but suppose botA sends issues CTM to client A and now it starts listening for the connection,
-			 * and at the same time botB also issues CTM to client B and it too waits for incoming. If due to heavy
-			 * network traffic on client A's route its packet is delayed and hence client B's response is received
-			 * earlier then botB will end up with connection to client A and botA with client B. While verifying
-			 * remote nicks they both find it wrong and hence both the connections will be dropped.
-			 * 
-			 * To fix that we synchronized the threads using locks.
-			 */
-			multiHubsAdapter.lock.lock();
 		try {
-			buffer = "$ConnectToMe " + user + " " + _botIP + ":" + _listenPort + "|";
-			SendCommand(buffer);
-
-			newsocket = socketServer.accept();
-
-		} catch (SocketTimeoutException soce) {
-			logger.error("Connection to client " + user + " timed out.", soce);
-			throw soce;
+			if (isInMultiHubsMode()){
+				/*
+				 * The statement below is needed, so that multiple bots'
+				 * simultaneous request for connection can be synchronized
+				 * because ServerSocket though allows multiple threads to
+				 * simultaneously listen but the packet received will be sent
+				 * to any one of the threads, maybe the one that requested to
+				 * listen first gets the first packet, but suppose botA sends
+				 * issues CTM to client A and now it starts listening for the
+				 * connection, and at the same time botB also issues CTM to
+				 * client B and it too waits for incoming. If due to heavy
+				 * network traffic on client A's route its packet is delayed and
+				 * hence client B's response is received earlier then botB will
+				 * end up with connection to client A and botA with client B.
+				 * While verifying remote nicks they both find it wrong and
+				 * hence both the connections will be dropped.
+				 * 
+				 * To fix that we synchronized the threads using locks.
+				 */
+				multiHubsAdapter.lock.lock();
+			}
+			
+			try {
+				buffer = "$ConnectToMe " + user + " " + _botIP + ":" + _listenPort + "|";
+				SendCommand(buffer);
+	
+				newsocket = socketServer.accept();
+	
+			} catch (SocketTimeoutException soce) {
+				logger.error("Connection to client " + user + " timed out.", soce);
+				throw soce;
+			}
 		} finally {
 			if (isInMultiHubsMode())
 				multiHubsAdapter.lock.unlock(); //We can now safely unlock as connection has been made.
@@ -620,7 +629,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		logger.info("00>>Connected to remote Client:: " + remoteClientIP);
 		u.setUserIP(remoteClientIP);
 
-		buffer = ReadCommand(newsocket); //Reading $MyNick remote_nick| OR $MaxedOut //remote_user == user
+		final InputStream clientInput = newsocket.getInputStream();
+		
+		buffer = ReadCommand(clientInput); //Reading $MyNick remote_nick| OR
+		//$MaxedOut //remote_user == user
 		if (buffer.equals("$MaxedOut|")) {
 			throw new BotException(BotException.Error.NO_FREE_SLOTS);
 		}
@@ -630,7 +642,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			throw new BotException(BotException.Error.REMOTE_CLIENT_SENT_WRONG_USERNAME);
 		}
 
-		buffer = ReadCommand(newsocket); //Reading $Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|
+		buffer = ReadCommand(clientInput); //Reading $Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|
 		String lock = parseRawCmd(buffer)[1];
 		String key = lock2key(lock);
 
@@ -645,7 +657,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			buffer = lock;
 			SendCommand(buffer, newsocket);
 
-			buffer = ReadCommand(newsocket); // Read the key sent by the
+			buffer = ReadCommand(clientInput); // Read the key sent by the
 			// remote client. I am not
 			// verifying the key,
 			// hence I am now simply moving on to the next step without
@@ -655,7 +667,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			buffer = "$MyNick " + _botname + "|";
 			SendCommand(buffer, newsocket);
 
-			buffer = ReadCommand(newsocket); // Reading $Direction.
+			buffer = ReadCommand(clientInput); // Reading $Direction.
 			String read_direction = buffer.substring(buffer.indexOf(' ') + 1, buffer.indexOf(' ', buffer.indexOf(' ') + 1));
 			if (read_direction.equalsIgnoreCase(direction)) {
 				// In this case the remote client to wants to do the same thing as this client, i.e.
@@ -667,23 +679,24 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			logger.info("Using Extended protocol.");
 
 			int N1 = 0x7FFF - 2; //Cheating! Cheating! This value should be randomly generated, but here I am setting this to max possible value - 2.
-			buffer =
-				"$MyNick " + _botname + "|$Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|$Supports "
-				+ _clientproto_supports + "|$Direction " + direction + " " + N1 + "|$Key " + key + "|";
+			buffer = new StringBuffer
+					("$MyNick ").append(_botname).append("|$Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|$Supports ")
+				.append(_clientproto_supports).append("|$Direction ").append(direction).append(" ").append(N1).append("|$Key ")
+				.append(key).append("|").toString();
 			SendCommand(buffer, newsocket);
 
-			buffer = ReadCommand(newsocket);// Reading $Supports S|
+			buffer = ReadCommand(clientInput);// Reading $Supports S|
 			String remote_supports = parseCmdArgs(buffer);
 			u.setSupports(remote_supports);
 
-			buffer = ReadCommand(newsocket);// Reading $Direction Upload N2|
+			buffer = ReadCommand(clientInput);// Reading $Direction Upload N2|
 			String params[] = parseRawCmd(buffer);
 			int N2 = Integer.parseInt(params[2]);
 			if (params[1].equalsIgnoreCase(direction)) {
 				logger.warn("Huh! Remote client for  " + user + " too wants to " + direction + " from me. This situation is not handled.");
 			}
 
-			buffer = ReadCommand(newsocket);// Reading $Key ........A .....0.0. 0. 0. 0. 0. 0.|
+			buffer = ReadCommand(clientInput);// Reading $Key ........A .....0.0. 0. 0. 0. 0. 0.|
 
 			if (N1 < N2)
 				logger.warn("N1 is < N2 dunno what to do now. Anyway continuing as if it never happened.");
@@ -708,7 +721,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		String buffer = "$MyNick " + _botname + "|$Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|"; //user == remote_nick
 		SendCommand(buffer, newsocket);
 
-		buffer = ReadCommand(newsocket); //Reading $MyNick remote_nick| OR $MaxedOut
+		final InputStream clientInput = newsocket.getInputStream();
+		
+		buffer = ReadCommand(clientInput); //Reading $MyNick remote_nick| OR $MaxedOut
 		if (buffer.equals("$MaxedOut|")) {
 			throw new BotException(BotException.Error.NO_FREE_SLOTS);
 		}
@@ -720,7 +735,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		User u = um.getUser(remote_nick);
 		u.setUserIP(ip);
 
-		buffer = ReadCommand(newsocket); //Reading $Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|
+		buffer = ReadCommand(clientInput); //Reading $Lock EXTENDEDPROTOCOLABCABCABCABCABCABC Pk=DCPLUSPLUS0.698ABCABC|
 		String lock = parseRawCmd(buffer)[1];
 		String key = lock2key(lock);
 		if (!lock.startsWith("EXTENDEDPROTOCOL")) {
@@ -728,16 +743,16 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			throw new BotException(BotException.Error.PROTOCOL_UNSUPPORTED);
 		}
 
-		buffer = ReadCommand(newsocket); //Reading $Supports S|
+		buffer = ReadCommand(clientInput); //Reading $Supports S|
 		String remote_supports = parseCmdArgs(buffer);
 		u.setSupports(remote_supports);
 
-		buffer = ReadCommand(newsocket); //Reading $Direction D N|
+		buffer = ReadCommand(clientInput); //Reading $Direction D N|
 		String params[] = parseRawCmd(buffer);
 		String direction = params[1];
 		int N = Integer.parseInt(params[2]);
 
-		buffer = ReadCommand(newsocket); //Reading $Key ........A .....0.0. 0. 0. 0. 0. 0.|
+		buffer = ReadCommand(clientInput); //Reading $Key ........A .....0.0. 0. 0. 0. 0. 0.|
 
 		if (direction.equalsIgnoreCase("Upload")) {
 			try {
@@ -750,7 +765,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	}
 
 	/**
-	 * Attemps to nicely close connection with the hub. You
+	 * Attempts to nicely close connection with the hub. You
 	 * can call {@link #connect(String, int) connect} again to connect to the hub.
 	 */
 	final public void quit() {

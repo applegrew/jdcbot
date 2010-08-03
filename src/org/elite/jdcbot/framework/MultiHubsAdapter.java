@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.DatagramSocket;
-import java.net.ServerSocket;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,7 +69,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	protected int _maxUploadSlots;
 	protected int _maxDownloadSlots;
 
-	protected ServerSocket socketServer = null;
+	protected BufferedServerSocket socketServer = null;
 	protected DatagramSocket udpSocket = null;
 
 	protected String miscDir;
@@ -129,7 +128,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 		if (_sharesize == null || _sharesize.isEmpty())
 			_sharesize = "0";
 
-		socketServer = new ServerSocket(_listenPort);
+		socketServer = new BufferedServerSocket(_listenPort);
 		socketServer.setSoTimeout(60000); // Wait for 60s before timing out.
 
 		initiateUDPListening();
