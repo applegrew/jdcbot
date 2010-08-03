@@ -162,7 +162,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param uploadSlots Number of upload slots for other user to connect to you.
 	 * @param downloadSlots Number of download slots. This has nothing to do with DC++ protocol. This has been given
 	 * to put an upper cap on no. of simultaneous downloads.
-	 * @param passive Set this to fals if you are not behind a firewall.
+	 * @param passive Set this to false if you are not behind a firewall.
 	 * @throws IOException When error occurs trying to listen for port. The most probable reason for this would be that the port is not free.
 	 */
 	public jDCBot(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description, String conn_type,
@@ -182,8 +182,8 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	}
 
 	/**
-	 * Creates a new jDCBot instance which can co-exist with other jDCBot instances, all
-	 * sharing the shareable resources like the server sockets, etc.
+	 * Creates a new jDCBot instance which can coexist with other jDCBot instances, all
+	 * sharing the sharable resources like the server sockets, etc.
 	 * @param multiHubsAdapter An instance of MultiHubsAdapter.
 	 * @throws IOException When error occurs trying to listen for port. The most probable reason for this would be that the port is not free.
 	 */
@@ -195,6 +195,28 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 				multiHubsAdapter.getEmail(this), multiHubsAdapter._sharesize, multiHubsAdapter._maxUploadSlots,
 				multiHubsAdapter._maxDownloadSlots, multiHubsAdapter.isPassive(this), multiHubsAdapter.shareManager,
 				multiHubsAdapter.downloadCentral, multiHubsAdapter.getTotalHubsConnectedToCount());
+	}
+	
+	/**
+	 * Constructs a jDCBot.
+	 * @param config
+	 * @throws IOException When error occurs trying to listen for port. The most probable reason for this would be that the port is not free.
+	 */
+	public jDCBot(BotConfig config) throws IOException {
+		init(
+				config.getBotname(),
+				config.getBotIP(),
+				config.getListenPort(),
+				config.getUDP_listenPort(),
+				config.getPassword(),
+				config.getDescription(),
+				config.getConn_type(),
+				config.getEmail(),
+				config.getSharesize(),
+				config.getUploadSlots(),
+				config.getDownloadSlots(),
+				config.isPassive(),
+				null, null, 1);
 	}
 
 	private void init(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,

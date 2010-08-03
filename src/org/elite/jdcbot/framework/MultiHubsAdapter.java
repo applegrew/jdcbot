@@ -85,6 +85,29 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	 * Used to synchronized some process like when initConnectToMe is called.
 	 */
 	protected ReentrantLock lock;
+	
+	/**
+	 * Creates a new instance of MultiHubsAdapter. There should always be only instance of
+	 * this class.
+	 * @param config
+	 * @throws IOException 
+	 */
+	public MultiHubsAdapter(BotConfig config) throws IOException {
+		this(
+				config.getBotname(),
+				config.getBotIP(),
+				config.getListenPort(),
+				config.getUDP_listenPort(),
+				config.getPassword(),
+				config.getDescription(),
+				config.getConn_type(),
+				config.getEmail(),
+				config.getSharesize(),
+				config.getUploadSlots(),
+				config.getDownloadSlots(),
+				config.isPassive()
+				);
+	}
 
 	/**
 	 * Creates a new instance of MultiHubsAdapter. There should always be only instance of
