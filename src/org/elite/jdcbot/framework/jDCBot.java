@@ -113,7 +113,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	/**
 	 * Unlike for <i>shareManager</i>, DownloadCentral
 	 * is not instantiated automatically. Classes extending
-	 * jDCBot will have to intantiate it (if they need
+	 * jDCBot will have to instantiate it (if they need
 	 * it).
 	 */
 	protected DownloadCentral downloadCentral = null;
