@@ -347,7 +347,7 @@ public class FLDir implements Serializable, FLInterface {
      * @param owners For every FLFile in <i>sr</i> there is one entry in this, in
      * exact order of its appearance in <i>sr</i>. This and <i>sr</i> size
      * may not be same as no owner information is stored for FLDirs. This is an
-     * old code when FLFiles had no reference of their parents, hance it was
+     * old code when FLFiles had no reference of their parents, hence it was
      * required to store their parents's path to create FLFiles full path. 
      * @return An ArrayList of SearchResultSet created using list of FLInterface.
      */
@@ -419,7 +419,7 @@ public class FLDir implements Serializable, FLInterface {
      * at any depth in the tree. It is assumed
      * that a file exists only once in the
      * tree hence it will be removed from at its
-     * first occurence.
+     * first occurrence.
      * @param f
      * @return true if the file was found and deleted.
      */

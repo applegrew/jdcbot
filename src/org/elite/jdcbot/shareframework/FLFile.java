@@ -61,10 +61,10 @@ public class FLFile implements Serializable, FLInterface {
      */
     public String path;
     /**
-     * If this is set to false the ShareManager this entry won't show up
+     * If this is set to false then this entry won't show up
      * in the file list, but always execute {@link ShareManager#rebuildFileList()}
      * after changing this value else the file list will still won't reflect the
-     * chnages.
+     * changes.
      */
     public boolean shared;
 
@@ -86,7 +86,7 @@ public class FLFile implements Serializable, FLInterface {
     }
     
     public FLFile(FLDir p) {
-	this("", 0, "", 0, false, p);
+	this("", 0, null, 0, false, p);
     }
 
     public FLFile(String Name, long Size, String Path, long LastModified, boolean Shared, FLDir p) {
