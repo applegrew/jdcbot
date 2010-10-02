@@ -230,13 +230,6 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 		_botname = botname;
 		_password = password;
-		// remove this and put
-		// _description=description;
-		// if your hub doesn't require standard description
-		// though it is highly advised not to do so.
-		_description =
-			description + "<++ V:" + GlobalObjects.VERSION + ",M:" + (passive ? 'P' : 'A') + ",H:" + totalHubsConnectedTo + "/0/0,S:"
-			+ uploadSlots + ">";
 		_conn_type = conn_type;
 		_email = email;
 		_sharesize = sharesize;
@@ -256,6 +249,8 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 		if (_sharesize == null || _sharesize.isEmpty())
 			_sharesize = "0";
+		
+		setDescription(description, totalHubsConnectedTo);
 
 		//Creating Listen port for clients to contact this.
 		if (isInMultiHubsMode())
@@ -266,6 +261,73 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		}
 
 		initiateUDPListening();
+	}
+	
+	final public void setBotName(String botname) {
+		_botname = botname;
+	}
+	
+	final public void setPassword(String pass) {
+		_password = pass;
+	}
+	
+	final public void setEmail(String email) {
+		_email = email;
+	}
+	
+	final public String getBotName() {
+		return _botname;
+	}
+
+	final public String getPassword() {
+		return _password;
+	}
+
+	final public String getDescription() {
+		return _description;
+	}
+
+	/**
+	 * 
+	 * @param description
+	 * @param totalHubsConnectedTo
+	 */
+	final public void setDescription(String description, int totalHubsConnectedTo) {
+		this._description = new StringBuffer(description)
+		.append("<++ V:").append(GlobalObjects.VERSION).append(",M:")
+		.append((isPassive() ? 'P' : 'A')).append(",H:").append(totalHubsConnectedTo)
+		.append("/0/0,S:").append(getMaxUploadSlots()).append(">").toString();
+	}
+	
+	/**
+	 * If no MultiHubsAdapter is set then calling this
+	 * will have no effect. call {@link jDCBot#setDescription(String, int)} instead.
+	 * @param description
+	 */
+	public void setDescription(String description) {
+		if(multiHubsAdapter != null) {
+			setDescription(description, multiHubsAdapter.getTotalHubsConnectedToCount());
+		}
+	}
+
+	final public String getConnType() {
+		return _conn_type;
+	}
+
+	final public void setConnType(String conn_type) {
+		this._conn_type = conn_type;
+	}
+
+	final public String getEmail() {
+		return _email;
+	}
+
+	final public String getBotIP() {
+		return _botIP;
+	}
+
+	final public void setBotIP(String botIP) {
+		this._botIP = botIP;
 	}
 
 	/**
