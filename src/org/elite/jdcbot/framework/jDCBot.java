@@ -188,6 +188,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @throws IOException When error occurs trying to listen for port. The most probable reason for this would be that the port is not free.
 	 */
 	public jDCBot(MultiHubsAdapter multiHubsAdapter) throws IOException {
+		if(multiHubsAdapter == null) {
+			throw new NullPointerException("Supplied MultiHubsAdapter is null.");
+		}
 		this.multiHubsAdapter = multiHubsAdapter;
 
 		init(multiHubsAdapter.botname(this), multiHubsAdapter._botIP, multiHubsAdapter._listenPort, multiHubsAdapter._udp_port,
