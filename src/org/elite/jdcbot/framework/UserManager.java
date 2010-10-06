@@ -336,7 +336,7 @@ public class UserManager {
 	 * Sends message to all user on the hub
 	 * 
 	 * @param pm Message to be sent
-	 * @param timeout Timeout inteval in milliseconds between to private
+	 * @param timeout Timeout interval in milliseconds between to private
 	 * messages
 	 */
 	public void SendAll(String pm, long timeout) {

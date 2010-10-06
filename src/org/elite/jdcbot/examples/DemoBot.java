@@ -37,6 +37,7 @@ import org.elite.jdcbot.framework.DownloadCentral;
 import org.elite.jdcbot.framework.DownloadQEntry;
 import org.elite.jdcbot.framework.EventjDCBotAdapter;
 import org.elite.jdcbot.framework.GlobalObjects;
+import org.elite.jdcbot.framework.JMethod;
 import org.elite.jdcbot.framework.MultiHubsAdapter;
 import org.elite.jdcbot.framework.User;
 import org.elite.jdcbot.framework.jDCBot;
@@ -68,7 +69,7 @@ import org.slf4j.Logger;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.2
  */
 public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener {
 	private static final Logger logger = GlobalObjects.getLogger(DemoBot.class);
@@ -78,7 +79,7 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
 	 * The first instance launched by
 	 * void main() acts as mater, i.e.
 	 * it is the only one which will respond
-	 * to user's commands. Slaves donot respond to
+	 * to user's commands. Slaves do not respond to
 	 * user's commands (atleast directly). 
 	 */
 	private boolean isSlave = true;
@@ -143,26 +144,27 @@ public class DemoBot extends EventjDCBotAdapter implements ShareManagerListener 
 		}
 
 		final int maxLen = 20000; //YnHub has a restriction of allowing maximum 32768 bytes in PM messages, but in reality it allows even less.
-		try {
-			int len;
-			do {
-				len = msg.getBytes().length - maxLen;
-				String m;
-				if (len <= 0)
-					m = msg;
-				else {
-					byte[] b = new byte[maxLen];
-					System.arraycopy(msg.getBytes(), 0, b, 0, b.length);
-					m = new String(b);
-					b = new byte[len];
-					System.arraycopy(msg.getBytes(), maxLen, b, 0, b.length);
-					msg = msg.substring(maxLen);
-				}
-				SendPrivateMessage(user, m);
-			} while (len > 0);
-		} catch (IOException e) {
+		int len;
+		do {
+			len = msg.getBytes().length - maxLen;
+			String m;
+			if (len <= 0)
+				m = msg;
+			else {
+				byte[] b = new byte[maxLen];
+				System.arraycopy(msg.getBytes(), 0, b, 0, b.length);
+				m = new String(b);
+				b = new byte[len];
+				System.arraycopy(msg.getBytes(), maxLen, b, 0, b.length);
+				msg = msg.substring(maxLen);
+			}
+			SendPrivateMessage(user, m);
+		} while (len > 0);
+	}
+	
+	public void onSendCommandFailed(String msg, Throwable e, JMethod m) {
+		if(m.equals(JMethod.PRIVATE_MSG))
 			logger.error("Exception in pm()", e);
-		}
 	}
 
 	private void pmMaster(String msg) {

@@ -32,10 +32,10 @@ import org.slf4j.Logger;
  * @since 0.5
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.7
+ * @version 0.7.1
  * 
  */
-public class InputThread extends DCIO implements Runnable {
+class InputThread extends DCIO implements Runnable {
 	private static final Logger logger = GlobalObjects.getLogger(InputThread.class);
 	private InputStream _in;
 	private InputThreadTarget _inputThreadTrgt;

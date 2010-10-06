@@ -30,6 +30,7 @@ import java.util.Vector;
 import org.elite.jdcbot.framework.BotException;
 import org.elite.jdcbot.framework.DUEntity;
 import org.elite.jdcbot.framework.GlobalObjects;
+import org.elite.jdcbot.framework.JMethod;
 import org.elite.jdcbot.framework.User;
 import org.elite.jdcbot.framework.jDCBot;
 import org.elite.jdcbot.util.OutputEntityStream;
@@ -40,7 +41,7 @@ import org.slf4j.Logger;
  * This demo bot will download any file from a user when that user
  * sends the magnet URI of the file in private message to this bot.
  * <p>
- * This is an extension of DownloadBot. It recognises 4 commands and
+ * This is an extension of DownloadBot. It recognizes 4 commands and
  * as in Downloabot it reads the commands in the private message.
  * The commands are:-<br>
  * <ul>
@@ -48,14 +49,14 @@ import org.slf4j.Logger;
  * <li><code><b>download </b><i>magnet uri</i></code> This will download the file
  * specified by this magnet URI from the user who sent the command.</li>
  * <li><code><b>cancel </b><i>magnet uri</i></code> This will cancel downloads running/scheduled
- * specifed by this URI and from the user who sent the command.</li>
+ * specified by this URI and from the user who sent the command.</li>
  * <li><code><b>limit </b><i>rate in MBps</i></code> This will immediately set the download
  * rate to this. All future downloads too will run at this rate.</li>
  * </ul>
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.2
+ * @version 0.1.3
  */
 public class DownloadBot2 extends jDCBot {
 	private static final Logger logger = GlobalObjects.getLogger(DownloadBot2.class);
@@ -91,11 +92,12 @@ public class DownloadBot2 extends jDCBot {
 	}
 
 	private void pm(String user, String msg) {
-		try {
-			SendPrivateMessage(user, msg);
-		} catch (IOException e) {
+		SendPrivateMessage(user, msg);
+	}
+	
+	protected void onSendCommandFailed(String msg, Throwable e, JMethod m) {
+		if(m.equals(JMethod.PRIVATE_MSG))
 			logger.error("Exception in pm()", e);
-		}
 	}
 
 	protected void onPrivateMessage(String user, String msg) {

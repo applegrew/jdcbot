@@ -369,7 +369,7 @@ public class ShareManager {
 	 * @param user The user who has searched for this. If it was an
 	 * active search then it is any one arbitrary user from the source
 	 * IP. She may not have actually made this search.
-	 * @param It is the probability that the above user did actually
+	 * @param certainity It is the probability that the above user did actually
 	 * search this. (1.0 being certain)
 	 * @return null is never returned.
 	 */

@@ -59,7 +59,7 @@ import org.slf4j.Logger;
  * @author Kokanovic Branko
  * @author AppleGrew
  * @since 0.5
- * @version 1.0.2
+ * @version 1.0.3
  */
 public abstract class jDCBot extends InputThreadTarget implements UDPInputThreadTarget, BotInterface {
 	private static final Logger logger = GlobalObjects.getLogger(jDCBot.class);
@@ -78,6 +78,8 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 */
 	protected UDPInputThread _udp_inputThread = null;
 	private BotEventDispatchThread dispatchThread = null;
+	protected JobThread outThread;
+	private JobThread searchThread;
 
 	protected String miscDir;
 	protected String incompleteDir;
@@ -264,6 +266,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		}
 
 		initiateUDPListening();
+		outThread = new JobThread();
+		outThread.start();
+		searchThread = new JobThread();
+		searchThread.start();
 	}
 	
 	final public void setBotName(String botname) {
@@ -409,7 +415,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		return downloadCentral;
 	}
 
-	final public BotEventDispatchThread getDispatchThread() {
+	final BotEventDispatchThread getDispatchThread() {
 		return dispatchThread;
 	}
 
@@ -658,7 +664,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		SendCommand(buffer);
 	}
 
-	synchronized public final Socket initConnectToMe(String user, String direction) throws BotException, IOException {
+	synchronized final Socket initConnectToMe(String user, String direction) throws BotException, IOException {
 		if (!isConnected()) {
 			throw new BotException(BotException.Error.NOT_CONNECTED_TO_HUB);
 		}
@@ -856,19 +862,25 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * can call {@link #connect(String, int) connect} again to connect to the hub.
 	 */
 	final public void quit() {
-		try {
-			SendCommand("$Quit " + _botname + "|");
-		} catch (Exception e) {} finally {
-			try {
-				if (_inputThread != null)
-					_inputThread.stop();
-				if (socket != null)
-					socket.close();
-				socket = null;
-				_inputThread = null;
-			} catch (IOException e) {}
-			dispatchThread.callOnBotQuit();
-		}
+		outThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					SendCommand("$Quit " + _botname + "|");
+				} catch (IOException e) {}
+				finally {
+					try {
+						if (_inputThread != null)
+							_inputThread.stop();
+						if (socket != null)
+							socket.close();
+						socket = null;
+						_inputThread = null;
+					} catch (IOException e) {}
+					dispatchThread.callOnBotQuit();
+				}
+			}
+		});
 	}
 
 	/**
@@ -888,10 +900,11 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			shareManager.close();
 		if (downloadCentral != null && !isInMultiHubsMode())
 			downloadCentral.close();
+		outThread.terminate();
 	}
 
 	@Override
-	final public void disconnected() {
+	final void disconnected() {
 		_inputThread = null;
 		dispatchThread.callOnDisconnect();
 	}
@@ -948,7 +961,11 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		_op = flag;
 	}
 
-	final public void updateShareSize() {
+	/**
+	 * Handled internally. <b>You DO NOT NEED TO CALL.</b>
+	 * Although calling it won't hurt.
+	 */
+	public final void updateShareSize() {
 		String sharesize = String.valueOf(shareManager.getOwnShareSize(false));
 		if (sharesize.equals(_sharesize))
 			return;
@@ -1040,7 +1057,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * 
 	 * @param rawCommand Raw command sent from hub
 	 */
-	final public void handleCommand(String rawCommand) {
+	final void handleCommand(String rawCommand) {
 
 		if (rawCommand.startsWith("<")) {
 			processPublicMsg(rawCommand);
@@ -1156,7 +1173,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		dispatchThread.callOnPublicMessage(user, unescapeSpecial(message));
 	}
 
-	final public void handleUDPCommand(String rawCommand, String ip, int port) {
+	/**
+	 * Handled internally. <b>DO NOT CALL.</b>
+	 */
+	public final void handleUDPCommand(String rawCommand, String ip, int port) {
 		logger.debug("From user(" + ip + ":" + port + "): " + rawCommand);
 
 		if (rawCommand.startsWith("$SR ")) {
@@ -1282,16 +1302,20 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	}
 
 	/**
-	 * Sends raw command to hub.
+	 * Sends raw command to hub. Direct invocation by sub-classes not recommended
+	 * if not extremely required.<br>
+	 * <br>
+	 * <b>Note:</b> Always make use of outThread for writing on socket as it may block.
 	 * 
 	 * @param buffer
 	 *                Line which needs to be send. This method won't append "|" on the end on the string if it doesn't exist, so it is up to make
 	 *                sure buffer ends with "|" if you calling this method.
 	 * @throws IOException On error while sending data into the socket.
 	 */
-	public final void SendCommand(String buffer) throws IOException {
-		if (output != null)
+	protected final void SendCommand(final String buffer) throws IOException {
+		if (output != null) {
 			SendCommand(buffer, output);
+		}
 	}
 
 	/**
@@ -1299,15 +1323,12 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @throws IOException On error while sending data into the socket.
 	 * @return Command from hub
 	 */
-	private final String ReadCommand() throws IOException {
+	protected final String ReadCommand() throws IOException {
 		return ReadCommand(input);
 	}
 
 	/**
-	 * Damn Java won't let me make it package only visible.
-	 * Anyway, don't call this method ever. It is <u>not for
-	 * you</u>. So once again, <u><b>don't call this method
-	 * ever</b></u>.
+	 * Handled internally. <b>DO NOT CALL.</b>
 	 */
 	public final void onUDPExceptionClose(IOException e) {
 		_udp_inputThread = null;
@@ -1323,10 +1344,20 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * Sends public message on main chat.
 	 * 
 	 * @param message Message to be sent. It shouldn't end with "|".
-	 * @throws IOException On error while sending data into the socket.
 	 */
-	public final void SendPublicMessage(String message) throws IOException {
-		SendCommand("<" + _botname + "> " + escapeSpecial(message, false) + "|");
+	public final void SendPublicMessage(final String message) {
+		outThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					SendCommand("<" + _botname + "> " + escapeSpecial(message, false) + "|");
+				} catch (IOException e) {
+					logger.error("Private message send failed.", e);
+					dispatchThread.callOnSendCommandFailed("Could not send public message. Got error: " + e.getMessage(),
+							e, JMethod.PUBLIC_MSG);
+				}
+			}
+		});
 	}
 
 	/**
@@ -1334,10 +1365,21 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * 
 	 * @param user User who will get message.
 	 * @param message Message to be sent. It shouldn't end with "|".
-	 * @throws IOException On error while sending data into the socket.
 	 */
-	public final void SendPrivateMessage(String user, String message) throws IOException {
-		SendCommand("$To: " + user + " From: " + _botname + " $<" + _botname + "> " + escapeSpecial(message, false) + "|");
+	public final void SendPrivateMessage(final String user, final String message) {
+		outThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					SendCommand("$To: " + user + " From: " + _botname + " $<" + _botname + "> "
+							+ escapeSpecial(message, false) + "|");
+				} catch (IOException e) {
+					logger.error("Private message send failed.", e);
+					dispatchThread.callOnSendCommandFailed("Could not send private message. Got error: " + e.getMessage(),
+							e, JMethod.PRIVATE_MSG);
+				}
+			}
+		});
 	}
 
 	/**
@@ -1358,12 +1400,18 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * 
 	 * @param user User to be kicked
 	 */
-	public final void KickUser(String user) {
+	public final void KickUser(final String user) {
 		if (!isConnected())
 			return;
-		try {
-			SendCommand("$Kick " + user + "|");
-		} catch (Exception e) {}
+
+		outThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					SendCommand("$Kick " + user + "|");
+				} catch (IOException e) {}
+			}
+		});
 	}
 
 	/**
@@ -1379,41 +1427,55 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 	/**
 	 * Searches in the hub.
+	 * <p></p>
+	 * <strong>Error not thrown.</strong> onSendCommandFailed(String,Throwable,JMethod.SEARCH)
+	 * will be invoked in case of error.
 	 * @param what The term to search for as per constrains given.
-	 * @throws IOException When communication error occurs.
 	 */
-	public final void Search(SearchSet what) throws IOException {
+	public final void Search(final SearchSet what) {
 		if (!isConnected())
 			return;
 
-		long size =
-			what.size_criteria == SearchSet.SizeCriteria.NONE ? 0 : (what.size_unit == SearchSet.SizeUnit.BYTE ? what.size
-					: what.size_unit.getValue() * 1024 * what.size);
-
-		String cmd = "$Search ";
-		if (_passive) {
-			cmd = cmd + "Hub:" + _botname + " ";
-		} else {
-			cmd = cmd + _botIP + ":" + _udp_port + " ";
-		}
-		String search = (what.size_criteria == SearchSet.SizeCriteria.NONE ? "F" : "T") + "?";
-		search =
-			search
-			+ (what.size_criteria == SearchSet.SizeCriteria.NONE || what.size_criteria == SearchSet.SizeCriteria.ATLEAST ? "F"
-					: "T") + "?";
-		search = search + (what.size_criteria == SearchSet.SizeCriteria.NONE ? "0" : size) + "?";
-		search = search + what.data_type.getValue() + "?";
-		search = search + (what.data_type == SearchSet.DataType.TTH ? "TTH:" : "") + escapeSpecial(what.string, true);
-
-		cmd = cmd + search + "|";
-
-		logger.debug("from bot: " + cmd);
-
-		SendCommand(cmd);
+		outThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				
+				long size =
+					what.size_criteria == SearchSet.SizeCriteria.NONE ? 0 : (what.size_unit == SearchSet.SizeUnit.BYTE ? what.size
+							: what.size_unit.getValue() * 1024 * what.size);
+		
+				String cmd = "$Search ";
+				if (_passive) {
+					cmd = cmd + "Hub:" + _botname + " ";
+				} else {
+					cmd = cmd + _botIP + ":" + _udp_port + " ";
+				}
+				String search = (what.size_criteria == SearchSet.SizeCriteria.NONE ? "F" : "T") + "?";
+				search =
+					search
+					+ (what.size_criteria == SearchSet.SizeCriteria.NONE || what.size_criteria == SearchSet.SizeCriteria.ATLEAST ? "F"
+							: "T") + "?";
+				search = search + (what.size_criteria == SearchSet.SizeCriteria.NONE ? "0" : size) + "?";
+				search = search + what.data_type.getValue() + "?";
+				search = search + (what.data_type == SearchSet.DataType.TTH ? "TTH:" : "") + escapeSpecial(what.string, true);
+		
+				cmd = cmd + search + "|";
+		
+				logger.debug("from bot: " + cmd);
+		
+				try {
+					SendCommand(cmd);
+				} catch (IOException e) {
+					logger.error("Search failed.", e);
+					dispatchThread.callOnSendCommandFailed("Search failed. Got error: " + e.getMessage(),
+							e, JMethod.SEARCH);
+				}
+			}
+		});
 	}
 
 	/**
-	 * Method for returning search results to active clients. You hould use it carefully if you're not owner/super user of the hub 'cause this can
+	 * Method for returning search results to active clients. You should use it carefully if you're not owner/super user of the hub 'cause this can
 	 * gets you banned/kicked. Search result you will return here are imaginary (same as your sharesize).
 	 * 
 	 * @param IP
@@ -1431,7 +1493,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param free_slots
 	 *                How many slots we have opened/unused
 	 */
-	public final void SendActiveSearchReturn(String IP, int port, boolean isDir, String name, String hash, long size, int free_slots) {
+	private void SendActiveSearchReturn(String IP, int port, boolean isDir, String name, String hash, long size, int free_slots) {
 		name = sanitizePath(escapeSpecial(name, false));
 
 		StringBuffer buffer = new StringBuffer();
@@ -1485,7 +1547,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param free_slots
 	 *                How many slots we have opened/unused
 	 */
-	public final void SendPassiveSearchReturn(String user, boolean isDir, String name, String hash, long size, int free_slots) {
+	private void SendPassiveSearchReturn(String user, boolean isDir, String name, String hash, long size, int free_slots) {
 		name = sanitizePath(escapeSpecial(name, false));
 
 		StringBuffer buffer = new StringBuffer();
@@ -1524,7 +1586,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	//******Methods that are called to notify an event******/
 	/**
 	 * Called when a <u>active</u> user is searching  for something.<br>
-	 * You need not override this method as it has the code that automcatically searches
+	 * You need not override this method as it has the code that automatically searches
 	 * in the file list and returns the result to the user.<br>
 	 * If you need to implement a feature e.g. a search spy, etc. override
 	 * {@link #onActiveSearch(String, int, SearchSet)}.
@@ -1532,52 +1594,64 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param port The port to which the result data datagram should be sent.
 	 * @param search The search that was made.
 	 */
-	final void onSearch(String ip, int port, SearchSet search) {
+	final void onSearch(final String ip, final int port, final SearchSet search) {
 		if (shareManager == null)
 			return;
 
-		List<User> u = um.getUserByIP(ip, false);
-		/*
-		 * Certainity probability (cp) calculation is done as follows:-
-		 * 1) if no user with IP == ip found then cp = 0.0
-		 * 2) else {
-		 * 	a) if some users are found with IP = ip then cp = 1 / no. of users found.
-		 * 	b) if bot is an operator and hub suppports UserIP2 then the user list we
-		 * 		created above is indeed correct and cp is not modified at all.
-		 * 	   else
-		 * 		The list we prepared above may not be correct as we may not have
-		 * 		all user's IPs, so we arbitraly subtarct 0.1 from cp.
-		 *    }
-		 */
-		List<SearchResultSet> res =
-			shareManager.searchOwnFileList(search, MAX_RESULTS_ACTIVE, u.size() == 0 ? null : u.get(0), u.size() == 0 ? 0.0 : 1
-					/ u.size() - (_op && isHubSupports("UserIP2") ? 0 : 0.1));
-		if (res != null) {
-			for (SearchResultSet r : res)
-				SendActiveSearchReturn(ip, port, r.isDir, r.name, r.TTH.isEmpty() || r.TTH == null ? null : r.TTH, r.size,
-						getFreeUploadSlots());
-		}
+		final List<User> u = um.getUserByIP(ip, false);
+		
+		searchThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				/*
+				 * Certainty probability (cp) calculation is done as follows:-
+				 * 1) if no user with IP == ip found then cp = 0.0
+				 * 2) else {
+				 * 	a) if some users are found with IP = ip then cp = 1 / no. of users found.
+				 * 	b) if bot is an operator and hub supports UserIP2 then the user list we
+				 * 		created above is indeed correct and cp is not modified at all.
+				 * 	   else
+				 * 		The list we prepared above may not be correct as we may not have
+				 * 		all user's IPs, so we arbitrarily subtract 0.1 from cp.
+				 *    }
+				 */
+				List<SearchResultSet> res =
+					shareManager.searchOwnFileList(search, MAX_RESULTS_ACTIVE, u.size() == 0 ? null : u.get(0), u.size() == 0 ? 0.0 : 1
+							/ u.size() - (_op && isHubSupports("UserIP2") ? 0 : 0.1));
+				if (res != null) {
+					for (SearchResultSet r : res)
+						SendActiveSearchReturn(ip, port, r.isDir, r.name, r.TTH.isEmpty() || r.TTH == null ? null : r.TTH, r.size,
+								getFreeUploadSlots());
+				}
+			}
+		});
+		
 	}
 
 	/**
 	 * Called when a <u>passive</u> user is searching  for something.<br>
-	 * You need not override this method as it has the code that automcatically searches
+	 * You need not override this method as it has the code that automatically searches
 	 * in the file list and returns the result to the user.<br>
 	 * If you need to implement a feature e.g. a search spy, etc. override
 	 * {@link #onPassiveSearch(String, SearchSet)}.
 	 * @param user The user who made the search.
 	 * @param search The search that was made.
 	 */
-	final void onSearch(String user, SearchSet search) {
+	final void onSearch(final String user, final SearchSet search) {
 		if (shareManager == null)
 			return;
 
-		List<SearchResultSet> res = shareManager.searchOwnFileList(search, MAX_RESULTS_PASSIVE, getUser(user), 1.0);
-		if (res != null) {
-			for (SearchResultSet r : res)
-				SendPassiveSearchReturn(user, r.isDir, r.name, r.TTH.isEmpty() || r.TTH == null ? null : r.TTH, r.size,
-						getFreeUploadSlots());
-		}
+		searchThread.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				List<SearchResultSet> res = shareManager.searchOwnFileList(search, MAX_RESULTS_PASSIVE, getUser(user), 1.0);
+				if (res != null) {
+					for (SearchResultSet r : res)
+						SendPassiveSearchReturn(user, r.isDir, r.name, r.TTH.isEmpty() || r.TTH == null ? null : r.TTH, r.size,
+								getFreeUploadSlots());
+				}
+			}
+		});
 	}
 
 	/**
@@ -1588,7 +1662,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param senderNick The user's nick who returned the result.
 	 * @param senderIP This can be null if search response is received
 	 * from the hub, i.e. you are passive.
-	 * @param senderPort This is zero when you are pasive.
+	 * @param senderPort This is zero when you are passive.
 	 * @param result The search response.
 	 * @param free_slots The number of free slots <i>senderNick</i> user has.
 	 * @param total_slots The total number of upload slots <i>senderNick</i> user has.
@@ -1600,7 +1674,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 			int total_slots, String hubName) {}
 
 	/**
-	 * Called upon succesfully connecting to hub.
+	 * Called upon successfully connecting to hub.
 	 * <p>
 	 * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.
 	 * 
@@ -1811,4 +1885,14 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param due The informations about the file downloaded is in this.
 	 */
 	protected void onUploadStart(User user, DUEntity due) {}
+
+	/**
+	 * Called when async call to communicate with remote system fails.
+	 * The methods which may result in the invocation of this will
+	 * mention this in its comment.
+	 * @param msg
+	 * @param exception
+	 * @src The source method
+	 */
+	protected void onSendCommandFailed(String msg, Throwable exception, JMethod src) {}
 }

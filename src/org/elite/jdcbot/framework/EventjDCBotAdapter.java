@@ -27,7 +27,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
 /**
  * Created on 20-Jun-08<br>
  * This is class exists just for
- * your convinience. It implements
+ * your convenience. It implements
  * all the methods of EventjDCBotListener
  * and extends EventjDCBot too. This
  * allows you to create a class that
@@ -38,7 +38,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.2
  */
 abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDCBotListener {
 
@@ -147,4 +147,7 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
 
     @Override
     public void on_UploadStart(jDCBot src, User user, DUEntity due) {}
+    
+    @Override
+    public void on_SendCommandFailed(String msg, Throwable e, JMethod src) {}
 }

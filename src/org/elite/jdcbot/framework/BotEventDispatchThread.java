@@ -30,7 +30,7 @@ import org.slf4j.Logger;
 /**
  * Created on 31-May-08
  * @since 0.7.1
- * @version 0.1
+ * @version 0.2
  * @author AppleGrew
  * 
  */
@@ -54,7 +54,8 @@ public class BotEventDispatchThread extends Thread {
 		onBotQuit,
 		onConnect2Client,
 		onConnect,
-		onSearchResult
+		onSearchResult,
+		onSendCommandFailed
 	}
 
 	private List<DispatchEntity> dispatch;
@@ -164,6 +165,9 @@ public class BotEventDispatchThread extends Thread {
 							(SearchResultSet) getArg(args, 3), (Integer) getArg(args, 4), (Integer) getArg(args, 5), (String) getArg(
 									args, 6));
 
+					break;
+				case onSendCommandFailed:
+					_bot.onSendCommandFailed((String) getArg(args, 0), (Throwable) getArg(args, 1), (JMethod) getArg(args, 1));
 					break;
 				default:
 					try {
@@ -318,6 +322,13 @@ public class BotEventDispatchThread extends Thread {
 		DispatchEntity de = new DispatchEntity();
 		de.method = Method.onSearchResult;
 		de.params = new Object[] { senderNick, senderIP, senderPort, result, free_slots, total_slots, hubName };
+		addToDispath(de);
+	}
+
+	public void callOnSendCommandFailed(String msg, Throwable e, JMethod src) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onSendCommandFailed;
+		de.params = new Object[] { msg, e, src };
 		addToDispath(de);
 	}
 }

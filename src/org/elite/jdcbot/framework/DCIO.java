@@ -33,14 +33,14 @@ import org.slf4j.Logger;
  *
  * @author AppleGrew
  * @since 0.7
- * @version 0.1.1
+ * @version 0.1.2
  * 
  */
-public class DCIO {
+class DCIO {
 	private static final Logger logger = GlobalObjects.getLogger(DCIO.class);
-	private String ioexception_msg = null;
-
-	public void set_IOExceptionMsg(String msg) {
+	private String ioexception_msg;
+	
+	void set_IOExceptionMsg(String msg) {
 		ioexception_msg = msg;
 	}
 
@@ -51,7 +51,7 @@ public class DCIO {
 	 * @return Command from hub
 	 * @throws IOException 
 	 */
-	public final String ReadCommand(InputStream in) throws IOException {
+	final String ReadCommand(InputStream in) throws IOException {
 		int c;
 		//Changing to StringBuffer from String. Artifact#2934462.
 		StringBuffer buffer = new StringBuffer();
@@ -69,7 +69,7 @@ public class DCIO {
 		return buffer.toString();
 	}
 
-	public final String ReadCommand(Socket socket) throws IOException {
+	final String ReadCommand(Socket socket) throws IOException {
 		//Removed BufferedInputStream from here,
 		//which was added as part of artifact#2934462.
 		//The local BufferedInputStream caused loss in data.
@@ -85,7 +85,7 @@ public class DCIO {
 	 * @param out The socket stream into which to write the raw command.              
 	 * @throws IOException 
 	 */
-	public final void SendCommand(String buffer, OutputStream out) throws IOException {
+	final void SendCommand(String buffer, OutputStream out) throws IOException {
 		byte[] bytes = new byte[buffer.length()];
 		for (int i = 0; i < buffer.length(); i++)
 			bytes[i] = (byte) buffer.charAt(i);
@@ -94,7 +94,7 @@ public class DCIO {
 		out.write(bytes);
 	}
 
-	public final void SendCommand(final String buffer, final Socket socket) throws IOException {
+	final void SendCommand(final String buffer, final Socket socket) throws IOException {
 		final BufferedOutputStream bufOut = new BufferedOutputStream(socket.getOutputStream()); 
 		SendCommand(buffer, bufOut);
 		bufOut.flush();
@@ -107,7 +107,7 @@ public class DCIO {
 	 * @param cmd The raw command to parse.
 	 * @return
 	 */
-	public final String[] parseRawCmd(String cmd) {
+	final String[] parseRawCmd(String cmd) {
 		String tbuffer[] = null;
 		String buffer[] = cmd.split(" ");
 		if (buffer[0].startsWith("$"))
@@ -130,7 +130,7 @@ public class DCIO {
 	 * @param cmd The raw command to parse.
 	 * @return
 	 */
-	public final String parseCmdName(String cmd) {
+	final String parseCmdName(String cmd) {
 		return cmd.substring(1, cmd.indexOf(' '));
 	}
 
@@ -139,7 +139,7 @@ public class DCIO {
 	 * @param cmd The raw command to parse.
 	 * @return
 	 */
-	public final String parseCmdArgs(String cmd) {
+	final String parseCmdArgs(String cmd) {
 		return cmd.substring(cmd.indexOf(' '), cmd.lastIndexOf('|')).trim();
 	}
 }

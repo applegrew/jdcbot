@@ -1,7 +1,7 @@
 /*
- * InputThreadTarget.java
+ * JMethod.java
  *
- * Copyright (C) 2008 AppleGrew
+ * Copyright (C) 2010 AppleGrew
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,29 +17,15 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
+
 package org.elite.jdcbot.framework;
 
 /**
- * Created on 26-May-08<br>
- * This must be implemented if you
- * want to listen for commands on
- * TCP connection.
  * 
- * @since 0.7
  * @author AppleGrew
- * @version 0.1.1
- * 
+ * @since 1.1.4
+ * @version 1.0
  */
-class InputThreadTarget extends DCIO {
-    /**
-     * Called by InputThread when a command is read from the socket input.
-     * @param rawcmd The raw command is passed in this argument.
-     */
-    void handleCommand(String rawcmd){}
-
-    /**
-     * Called by InputThread on socket disconnection. 
-     *
-     */
-    void disconnected(){}
+public enum JMethod {
+	SEARCH, PRIVATE_MSG, PUBLIC_MSG
 }

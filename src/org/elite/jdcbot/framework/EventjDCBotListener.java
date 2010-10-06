@@ -29,7 +29,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1
+ * @version 0.1.1
  * @see EventjDCBotListenerAdapter
  * @see EventjDCBotAdapter
  */
@@ -42,7 +42,7 @@ public interface EventjDCBotListener {
      * @param senderNick The user's nick who returned the result.
      * @param senderIP This can be null if search response is received
      * from the hub, i.e. you are passive.
-     * @param senderPort This is zero when you are pasive.
+     * @param senderPort This is zero when you are passive.
      * @param result The search response.
      * @param free_slots The number of free slots <i>senderNick</i> user has.
      * @param total_slots The total number of upload slots <i>senderNick</i> user has.
@@ -52,7 +52,7 @@ public interface EventjDCBotListener {
 	    int free_slots, int total_slots, String hubName);
 
     /**
-     * Called upon succesfully connecting to hub.
+     * Called upon successfully connecting to hub.
      * <p>
      * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.
      */
@@ -95,7 +95,7 @@ public interface EventjDCBotListener {
      * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.
      * 
      * @param user
-     *                Nema of the user who entered hub.
+     *                Name of the user who entered hub.
      */
     public abstract void on_Join(jDCBot src, String user);
 
@@ -150,7 +150,7 @@ public interface EventjDCBotListener {
      * <p>
      * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.
      * @param user The passive user who made the search.
-     * @param search Contains all the details abot the search made.
+     * @param search Contains all the details about the search made.
      */
     public abstract void on_PassiveSearch(jDCBot src, String user, SearchSet search);
 
@@ -170,7 +170,7 @@ public interface EventjDCBotListener {
      * @param user The user from whom the file was downloaded.
      * @param due The informations about the file downloaded is in this.
      * @param success It is true if download was successful else false.
-     * @param e The exception that occured when sucess is false else it is null.
+     * @param e The exception that occurred when success is false else it is null.
      */
     public abstract void on_DownloadComplete(jDCBot src, User user, DUEntity due, boolean success, BotException e);
 
@@ -198,4 +198,14 @@ public interface EventjDCBotListener {
      * @param due The informations about the file downloaded is in this.
      */
     public abstract void on_UploadStart(jDCBot src, User user, DUEntity due);
+    
+	/**
+	 * Called when async call to communicate with remote system fails.
+	 * The methods which may result in the invocation of this will
+	 * mention this in its comment.
+	 * @param msg
+	 * @param exception
+	 * @src The source method
+	 */
+    public abstract void on_SendCommandFailed(String msg, Throwable e, JMethod src);
 }
