@@ -33,7 +33,7 @@ import org.slf4j.Logger;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.2
  */
 public class UDPInputThread implements Runnable {
 	private static final Logger logger = GlobalObjects.getLogger(UDPInputThread.class);
@@ -82,6 +82,7 @@ public class UDPInputThread implements Runnable {
 	public void start() {
 		Thread th = new Thread(this, "UDPInputThread");
 		if (th.getState() == Thread.State.NEW) {
+			th.setDaemon(true);
 			running = true;
 			th.start();
 			logger.debug("new UDPInputThread thread started.");

@@ -59,7 +59,7 @@ import org.slf4j.Logger;
  * @author Kokanovic Branko
  * @author AppleGrew
  * @since 0.5
- * @version 1.0.3
+ * @version 1.0.4
  */
 public abstract class jDCBot extends InputThreadTarget implements UDPInputThreadTarget, BotInterface {
 	private static final Logger logger = GlobalObjects.getLogger(jDCBot.class);
@@ -267,8 +267,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 		initiateUDPListening();
 		outThread = new JobThread();
+		outThread.setDaemon(true);
 		outThread.start();
 		searchThread = new JobThread();
+		searchThread.setDaemon(true);
 		searchThread.start();
 	}
 	
