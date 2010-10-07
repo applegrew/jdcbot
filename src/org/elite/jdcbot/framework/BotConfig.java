@@ -19,6 +19,8 @@
  */
 package org.elite.jdcbot.framework;
 
+import org.elite.jdcbot.util.GlobalFunctions;
+
 /**
  * Created on 3-Aug-10<br>
  * A simple POJO to capture bot
@@ -49,7 +51,10 @@ public class BotConfig {
 	public String getBotname() {
 		return botname;
 	}
-	public void setBotname(String botname) {
+	public void setBotname(String botname) throws BotException {
+		if(!GlobalFunctions.isUserNameValid(botname)) {
+			throw new BotException(BotException.Error.INVALID_USERNAME);
+		}
 		this.botname = botname;
 	}
 	public String getBotIP() {

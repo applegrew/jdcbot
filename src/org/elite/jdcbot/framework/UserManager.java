@@ -323,8 +323,8 @@ public class UserManager {
 					//i.remove();
 					//users.add(new User(user, desc, conn, mail, share, _bot));
 					u.setInfo(desc, conn, mail, share);
-					System.err.println("UM.SetInfo: " + users.toString());
-					return;
+					logger.info("UM.SetInfo: " + users.toString());
+					break;
 				}
 			}
 		}

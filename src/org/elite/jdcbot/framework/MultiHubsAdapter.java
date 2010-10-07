@@ -35,6 +35,7 @@ import javax.imageio.IIOException;
 
 import org.elite.jdcbot.shareframework.SearchSet;
 import org.elite.jdcbot.shareframework.ShareManager;
+import org.elite.jdcbot.util.GlobalFunctions;
 import org.slf4j.Logger;
 
 /**
@@ -91,8 +92,9 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	 * this class.
 	 * @param config
 	 * @throws IOException 
+	 * @throws BotException 
 	 */
-	public MultiHubsAdapter(BotConfig config) throws IOException {
+	public MultiHubsAdapter(BotConfig config) throws IOException, BotException {
 		this(
 				config.getBotname(),
 				config.getBotIP(),
@@ -126,10 +128,16 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	 * @param downloadSlots
 	 * @param passive
 	 * @throws IOException 
+	 * @throws BotException 
 	 */
 	public MultiHubsAdapter(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
 			String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive)
-	throws IOException {
+	throws IOException, BotException {
+		
+		if(!GlobalFunctions.isUserNameValid(botname)) {
+			throw new BotException(BotException.Error.INVALID_USERNAME);
+		}
+		
 		_botname = botname;
 		_password = password;
 		_description = description;

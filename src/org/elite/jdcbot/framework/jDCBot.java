@@ -40,6 +40,7 @@ import javax.imageio.IIOException;
 import org.elite.jdcbot.shareframework.SearchResultSet;
 import org.elite.jdcbot.shareframework.SearchSet;
 import org.elite.jdcbot.shareframework.ShareManager;
+import org.elite.jdcbot.util.GlobalFunctions;
 import org.slf4j.Logger;
 
 /**
@@ -154,7 +155,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * @param botname Name of the bot as it will appear in the list of users.
 	 * @param botIP Your IP.
 	 * @param listenPort The port on your computer where jdcbot should listen for incoming connections from clients.
-	 * @param password Passsword if required, you could put anything if no password is needed.
+	 * @param password Password if required, you could put anything if no password is needed.
 	 * @param description Description of your bot as it will appear in the list of users. On your description is appended standard description.
 	 * @param conn_type Your connection type, for details look <a href="http://www.teamfair.info/wiki/index.php?title=%24MyINFO">here</a>.
 	 * <b>Note</b> that this setting is just a mere imitation. It will not actually limit upload speed.
@@ -166,9 +167,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * to put an upper cap on no. of simultaneous downloads.
 	 * @param passive Set this to false if you are not behind a firewall.
 	 * @throws IOException When error occurs trying to listen for port. The most probable reason for this would be that the port is not free.
+	 * @throws BotException In case of invalid botname this is thrown. 
 	 */
 	public jDCBot(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description, String conn_type,
-			String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive) throws IOException {
+			String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive) throws IOException, BotException {
 
 		init(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
 				passive, null, null, 1);
@@ -206,8 +208,9 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * Constructs a jDCBot.
 	 * @param config
 	 * @throws IOException When error occurs trying to listen for port. The most probable reason for this would be that the port is not free.
+	 * @throws BotException In case of invalid botname this is thrown. 
 	 */
-	public jDCBot(BotConfig config) throws IOException {
+	public jDCBot(BotConfig config) throws IOException, BotException {
 		init(
 				config.getBotname(),
 				config.getBotIP(),
@@ -226,8 +229,12 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 	private void init(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
 			String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive,
-			ShareManager share_manager, DownloadCentral dc, int totalHubsConnectedTo) throws IOException {
+			ShareManager share_manager, DownloadCentral dc, int totalHubsConnectedTo) throws IOException, BotException {
 
+		if(!GlobalFunctions.isUserNameValid(botname)) {
+			throw new BotException(BotException.Error.INVALID_USERNAME);
+		}
+		
 		if (isInMultiHubsMode()) {
 			miscDir = multiHubsAdapter.miscDir;
 			incompleteDir = multiHubsAdapter.incompleteDir;
@@ -274,7 +281,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		searchThread.start();
 	}
 	
-	final public void setBotName(String botname) {
+	final public void setBotName(String botname) throws BotException {
+		if(!GlobalFunctions.isUserNameValid(botname)) {
+			throw new BotException(BotException.Error.INVALID_USERNAME);
+		}
 		_botname = botname;
 	}
 	
@@ -635,7 +645,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 				throw new BotException(e.getMessage() + ": " + buffer, BotException.Error.IO_ERROR);
 			}
 		}
-
+		
 		buffer = "$Version " + _protoVersion + "|";
 		SendCommand(buffer);
 
@@ -657,7 +667,7 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 
 		_inputThread = new InputThread(this, input, "Hub InputThread");
 		_inputThread.start();
-
+		
 		dispatchThread.callOnConnect();
 	}
 

@@ -87,10 +87,11 @@ abstract public class EventjDCBot extends jDCBot {
      * @param passive Set this to fals if you are not behind a firewall.
      * @param outputLog <u>Almost</u> all debug messages will be printed in this.
      * @throws IOException 
+     * @throws BotException 
      */
     public EventjDCBot(String botname, String botIP, int listenPort, int UDP_listenPort, String password, String description,
 	    String conn_type, String email, String sharesize, int uploadSlots, int downloadSlots, boolean passive)
-	    throws IOException {
+	    throws IOException, BotException {
 
 	super(botname, botIP, listenPort, UDP_listenPort, password, description, conn_type, email, sharesize, uploadSlots, downloadSlots,
 		passive);
@@ -100,8 +101,9 @@ abstract public class EventjDCBot extends jDCBot {
      * Constructs a EventjDCBot with the default settings. Your own constructors in classes which extend the EventjDCBot abstract class should be
      * responsible for changing the default settings if required.
      * @throws IOException 
+     * @throws BotException 
      */
-    public EventjDCBot(String botIP) throws IOException {
+    public EventjDCBot(String botIP) throws IOException, BotException {
 	super(botIP);
     }
 
@@ -110,8 +112,9 @@ abstract public class EventjDCBot extends jDCBot {
      * sharing the shareable resources like the server sockets, etc.
      * @param multiHubsAdapter An instance of MultiHubsAdapter.
      * @throws IOException 
+     * @throws BotException 
      */
-    public EventjDCBot(MultiHubsAdapter multiHubsAdapter) throws IOException {
+    public EventjDCBot(MultiHubsAdapter multiHubsAdapter) throws IOException, BotException {
 	super(multiHubsAdapter);
     }
 

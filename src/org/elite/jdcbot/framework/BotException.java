@@ -26,9 +26,9 @@ package org.elite.jdcbot.framework;
  * @since 0.5
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 1.0
+ * @version 1.1
  */
-public class BotException extends Exception {
+public class BotException extends RuntimeException {
 
     private static final long serialVersionUID = -6707371836754480742L;
 
@@ -55,7 +55,8 @@ public class BotException extends Exception {
 	ALREADY_CONNECTED,
 	CANNOT_DOWNLOAD_FROM_SELF,
 	TASK_FAILED_SHUTTING_DOWN,
-	USER_HAS_NO_INFO;
+	USER_HAS_NO_INFO,
+	INVALID_USERNAME;
 
 	/**
 	 * Returns a better explanatory message for the Error.
@@ -134,6 +135,10 @@ public class BotException extends Exception {
 			    "User has just logged in and his MyINFO is yet to be received. "
 				    + "So, we can't interact reliably with him till his MyINFO is received";
 		    break;
+		case INVALID_USERNAME:
+			e = "Username is invalid. Username should not contain any space or symbols" +
+					" other than hyphen(-) and underscore (_).";
+			break;
 		default:
 		    e = "Unknow Error type";
 	    }

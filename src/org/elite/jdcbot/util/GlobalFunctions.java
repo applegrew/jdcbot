@@ -19,6 +19,8 @@
  */
 package org.elite.jdcbot.util;
 
+import java.util.regex.Pattern;
+
 /**
  * Created on 11-Jun-08<br>
  * This are common functions that is used by many classes of framework
@@ -26,9 +28,11 @@ package org.elite.jdcbot.util;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1
+ * @version 0.1.1
  */
 public class GlobalFunctions {
+	private static final Pattern validUserName = Pattern.compile("^[a-zA-Z0-9_-]+$");
+	public static final String EMPTY = "";
 
     /**
      * Searches for a match in <i>what</i>.
@@ -36,7 +40,7 @@ public class GlobalFunctions {
      * to search for.
      * @param what Inside which to search for.
      * @param useORconnector If true then keywords are assumed to hold
-     * OR realtion else AND relation is assumed.<br>
+     * OR relation else AND relation is assumed.<br>
      * e.g.<br>
      * <i>Apple Orange</i> will match <i>Apple</i> OR <i>Pine</i>,
      * but not with <i>Apple</i> AND <i>Pine</i>.
@@ -98,7 +102,7 @@ public class GlobalFunctions {
     /**
      * Returns String representation of a double value trimmed to
      * the number of decimals required.<br>
-     * e.g. 23.34565678766 trimmed to 2 decials will
+     * e.g. 23.34565678766 trimmed to 2 decimals will
      * look like<br>
      * 23.34
      * @param no The number to trim.
@@ -116,4 +120,29 @@ public class GlobalFunctions {
 	    return sno.substring(0, decimalCount == 0 ? dp : dp + decimalCount + 1);
 	}
     }
+    
+    /**
+     * 
+     * @param str
+     * @return true is str is null or empty.
+     */
+    public static boolean isEmpty(String str) {
+    	return str == null || str.equals(EMPTY);
+    }
+    
+    /**
+	 * Can be used to test if given username
+	 * is valid or not.
+	 * @param botname The username to test.
+	 * @return
+	 */
+	public static boolean isUserNameValid(String botname) {
+		if(GlobalFunctions.isEmpty(botname)) {
+			return false;
+		}
+		if(validUserName.matcher(botname).matches()) {
+			return true;
+		}
+		return false;
+	}
 }
