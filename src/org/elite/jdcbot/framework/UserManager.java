@@ -42,7 +42,7 @@ import org.slf4j.Logger;
  * @since 0.6
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.8.1
+ * @version 0.8.2
  */
 public class UserManager {
 	private static final Logger logger = GlobalObjects.getLogger(UserManager.class);
@@ -280,38 +280,39 @@ public class UserManager {
 	 * @param info Info from the user that will be parsed
 	 */
 	public void SetInfo(String info) {
-		String user, desc, conn, mail, share;
+		StringBuffer user, desc, conn, mail, share;
 		int index = 0;
-		user = new String();
+		user = new StringBuffer();
 		while (info.charAt(index) != ' ') {
-			user = user + info.charAt(index);
+			user.append(info.charAt(index));
 			index++;
 		}
-		if (user.equalsIgnoreCase(_bot.botname()))
+		String strUser = user.toString();
+		if (strUser.equalsIgnoreCase(_bot.botname()))
 			return;
 
 		index++;
-		desc = new String();
+		desc = new StringBuffer();
 		while (info.charAt(index) != '$') {
-			desc = desc + info.charAt(index);
+			desc.append(info.charAt(index));
 			index++;
 		}
 		index = index + 3;
-		conn = new String();
+		conn = new StringBuffer();
 		while (info.charAt(index) != '$') {
-			conn = conn + info.charAt(index);
+			conn.append(info.charAt(index));
 			index++;
 		}
 		index++;
-		mail = new String();
+		mail = new StringBuffer();
 		while (info.charAt(index) != '$') {
-			mail = mail + info.charAt(index);
+			mail.append(info.charAt(index));
 			index++;
 		}
 		index++;
-		share = new String();
+		share = new StringBuffer();
 		while (info.charAt(index) != '$') {
-			share = share + info.charAt(index);
+			share.append(info.charAt(index));
 			index++;
 		}
 
@@ -319,17 +320,14 @@ public class UserManager {
 			Iterator<User> i = users.iterator();
 			while (i.hasNext()) {
 				User u = i.next();
-				if (u.username().equalsIgnoreCase(user)) {
-					//i.remove();
-					//users.add(new User(user, desc, conn, mail, share, _bot));
-					u.setInfo(desc, conn, mail, share);
-					logger.info("UM.SetInfo: " + users.toString());
+				if (u.username().equalsIgnoreCase(strUser)) {
+					u.setInfo(desc.toString(), conn.toString(), mail.toString(), share.toString());
 					break;
 				}
 			}
 		}
 
-		_bot.getDispatchThread().callOnUpdateMyInfo(user);
+		_bot.getDispatchThread().callOnUpdateMyInfo(strUser);
 	}
 
 	/**

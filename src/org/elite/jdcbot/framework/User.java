@@ -22,6 +22,8 @@ package org.elite.jdcbot.framework;
 
 import java.io.OutputStream;
 
+import org.slf4j.Logger;
+
 /**
  * User class.
  * <p>
@@ -32,10 +34,11 @@ import java.io.OutputStream;
  * @since 0.6
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.8
+ * @version 0.8.1
  */
 public class User {
-    private final int HASH_CONST = 51;
+	private static final Logger logger = GlobalObjects.getLogger(User.class);
+    private static final int HASH_CONST = 51;
 
     public static final int NORMAL_FLAG = 1;
     public static final int AWAY_FLAG = 2;
@@ -44,16 +47,20 @@ public class User {
     public static final int FIREBALL_FLAG = 8;
     public static final int FIREBALL_AWAY_FLAG = 10;
 
-    private String _username, _desc, _conn, _mail, _share, _tag, _supports, _ip;
+    private String _username, _desc, _conn, _mail, _share, _tag, _supports = "", _ip = "";
     private int _flag;
-    private volatile boolean _hasInfo, _op, extraSlotsGranted, blockUploadToUser;
+    private volatile boolean _hasInfo, _op = false, extraSlotsGranted = false, blockUploadToUser = false;
     private jDCBot _bot;
-    private String _CID;
+    private String _CID = "";
     private volatile boolean hasQuit = false;
 
     private int hashCode = -1;
 
     public User(String username, jDCBot bot) {
+	if(username == null || bot == null) {
+		logger.error("Username or bot is null: user:" + username + ", bot:" + bot);
+		throw new NullPointerException("username or bot is null!!!");
+	}
 	_username = username;
 	_bot = bot;
 	setInfo("", "", "", "0");
@@ -63,22 +70,21 @@ public class User {
     synchronized void setInfo(String desc, String conn, String mail, String share) {
 	_hasInfo = true;
 
-	_desc = desc;
-	_conn = conn;
-	_mail = mail;
-	_share = share;
-	_op = false;
-	_supports = "";
-	_ip = "";
-	extraSlotsGranted = false;
-	blockUploadToUser = false;
-	_CID = "";
+	_desc = desc == null? "": desc;
+	_conn = conn == null? "": conn;
+	_mail = mail == null? "": mail;
+	_share = share == null? "0": share;
 
 	int index = _desc.indexOf('<');
 	if (index == -1)
 	    _tag = new String();
 	else
+		try {
 	    _tag = _desc.substring(_desc.indexOf('<') + 1, _desc.length() - 1);
+		} catch (IndexOutOfBoundsException iobe) {
+		logger.warn("Malformed tag in user description: " + _desc);
+		_tag = "";
+		}
 
 	String flag;
 	if (_conn.length() == 0)
@@ -106,6 +112,7 @@ public class User {
 	    _flag = 10;
 
 	init();
+	logger.info("User info set: " + toString());
     }
 
     private void init() {
@@ -380,7 +387,7 @@ public class User {
      * Cancels download of a file. The DUEntity must have file, fileType, start and len set to proper values to
      * identify the download entity fully, others fields like os, in and settings are not checked, and hence can
      * have any value.
-     * @param de The entity that should be cancelled.
+     * @param de The entity that should be canceled.
      */
     public void cancelDownload(DUEntity de) {
 	_bot.downloadManager.cancelDownload(de, this);
@@ -415,7 +422,13 @@ public class User {
 
     @Override
     public String toString() {
-	return _username + "@" + getHubSignature() + " CID:" + (_CID.isEmpty() ? "unknown" : _CID) + " Has Info: " + _hasInfo;
+	return new StringBuffer(_username).append("@").append(getHubSignature())
+	.append(", CID:").append(_CID.isEmpty() ? "unknown" : _CID)
+	.append(", Has Info:").append(_hasInfo)
+	.append(", isOp:").append(_op)
+	.append(", IP:").append(_ip)
+	.append(", Tag:").append(_tag)
+	.toString();
     }
 
 }
