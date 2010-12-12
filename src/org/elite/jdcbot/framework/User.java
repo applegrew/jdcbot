@@ -34,7 +34,7 @@ import org.slf4j.Logger;
  * @since 0.6
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.8.1
+ * @version 0.8.2
  */
 public class User {
 	private static final Logger logger = GlobalObjects.getLogger(User.class);
@@ -56,7 +56,7 @@ public class User {
 
     private int hashCode = -1;
 
-    public User(String username, jDCBot bot) {
+    User(String username, jDCBot bot) {
 	if(username == null || bot == null) {
 		logger.error("Username or bot is null: user:" + username + ", bot:" + bot);
 		throw new NullPointerException("username or bot is null!!!");
