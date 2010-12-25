@@ -32,7 +32,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  * jDCBot class doesn't support event-listener
  * kind-of model at all. The sub-class of jDCBot
  * is the only one which can come to know about the
- * various events occuring in jDCBot.
+ * various events occurring in jDCBot.
  * <p>
  * For cases like when we need different objects to tap
  * the events of an instance of jDCBot, or, when many
@@ -57,7 +57,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.2.0
  * @see EventjDCBotAdapter
  */
 abstract public class EventjDCBot extends jDCBot {
@@ -74,7 +74,7 @@ abstract public class EventjDCBot extends jDCBot {
      * @param botname Name of the bot as it will appear in the list of users.
      * @param botIP Your IP.
      * @param listenPort The port on your computer where jdcbot should listen for incoming connections from clients.
-     * @param password Passsword if required, you could put anything if no password is needed.
+     * @param password Password if required, you could put anything if no password is needed.
      * @param description Description of your bot as it will appear in the list of users. On your description is appended standard description.
      * @param conn_type Your connection type, for details look <a href="http://www.teamfair.info/wiki/index.php?title=%24MyINFO">here</a>.
      * <b>Note</b> that this setting is just a mere imitation. It will not actually limit upload speed.
@@ -84,7 +84,7 @@ abstract public class EventjDCBot extends jDCBot {
      * @param uploadSlots Number of upload slots for other user to connect to you.
      * @param downloadSlots Number of download slots. This has nothing to do with DC++ protocol. This has been given
      * to put an upper cap on no. of simultaneous downloads.
-     * @param passive Set this to fals if you are not behind a firewall.
+     * @param passive Set this to false if you are not behind a firewall.
      * @param outputLog <u>Almost</u> all debug messages will be printed in this.
      * @throws IOException 
      * @throws BotException 
@@ -108,8 +108,8 @@ abstract public class EventjDCBot extends jDCBot {
     }
 
     /**
-     * Creates a new EventjDCBot instance which can co-exist with other EventjDCBot instances, all
-     * sharing the shareable resources like the server sockets, etc.
+     * Creates a new EventjDCBot instance which can coexist with other EventjDCBot instances, all
+     * sharing the sharable resources like the server sockets, etc.
      * @param multiHubsAdapter An instance of MultiHubsAdapter.
      * @throws IOException 
      * @throws BotException 
@@ -265,6 +265,14 @@ abstract public class EventjDCBot extends jDCBot {
 	synchronized (_listeners) {
 	    for (EventjDCBotListener l : _listeners)
 		l.on_UploadStart(this, user, due);
+	}
+    }
+    
+    @Override
+    final protected void onHubName(String hubName) {
+	synchronized (_listeners) {
+	    for (EventjDCBotListener l : _listeners)
+		l.on_HubName(this, hubName);
 	}
     }
 }

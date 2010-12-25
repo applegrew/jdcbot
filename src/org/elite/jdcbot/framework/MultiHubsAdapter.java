@@ -26,6 +26,7 @@ import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +57,7 @@ import org.slf4j.Logger;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.1.2
  */
 public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	private static final Logger logger = GlobalObjects.getLogger(MultiHubsAdapter.class);
@@ -194,6 +195,14 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 			bot.miscDir = this.miscDir;
 			bot.incompleteDir = this.incompleteDir;
 		}
+	}
+	
+	void addBot(jDCBot bot) {
+		bots.add(bot);
+	}
+	
+	void removeBot(jDCBot bot) {
+		bots.remove(bot);
 	}
 
 	public String getMiscDir() {
@@ -644,5 +653,40 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 
 	public int getTotalHubsConnectedToCount() {
 		return bots.size();
+	}
+	
+	public int getTotalHubsConnectedToAsOps() {
+		try {
+			int count = 0;
+			for(jDCBot bot: bots) {
+				if(bot.isOp())
+					count++;
+			}
+			return count;
+		} catch(ConcurrentModificationException cme) {
+			logger.warn("ConcurrentModificationException so sending TotalHubsConnectedToCount" +
+					"instead of TotalHubsConnectedToAsOps");
+			return getTotalHubsConnectedToCount();
+		}
+	}
+	
+	public int getTotalHubsConnectedToAsRegistered() {
+		try {
+			int count = 0;
+			for(jDCBot bot: bots) {
+				if(bot.isRegistered() && !bot.isOp())
+					count++;
+			}
+			return count;
+		} catch(ConcurrentModificationException cme) {
+			logger.warn("ConcurrentModificationException so sending TotalHubsConnectedToRegistered" +
+					"instead of TotalHubsConnectedToAsOps");
+			return getTotalHubsConnectedToCount();
+		}
+	}
+	
+	public int getTotalHubsConnectedToAsNormalUser() {
+		int normalCount = getTotalHubsConnectedToCount() - getTotalHubsConnectedToAsOps() - getTotalHubsConnectedToAsRegistered();
+		return normalCount < 0? getTotalHubsConnectedToCount(): normalCount;
 	}
 }

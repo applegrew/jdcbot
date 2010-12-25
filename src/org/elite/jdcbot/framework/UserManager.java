@@ -42,7 +42,7 @@ import org.slf4j.Logger;
  * @since 0.6
  * @author Kokanovic Branko
  * @author AppleGrew
- * @version 0.8.2
+ * @version 0.9.0
  */
 public class UserManager {
 	private static final Logger logger = GlobalObjects.getLogger(UserManager.class);
@@ -57,12 +57,12 @@ public class UserManager {
 
 	/**
 	 * Add all users from the user list (user nick are delimited with '$$')<br>
-	 * <b>Note:</b> When this methos is called then all pre-existing users will be lost.
+	 * <b>Note:</b> When this method is called then all pre-existing users will be lost.
 	 * 
 	 * @param user_list
 	 *                List of all users delimited with '$$'
 	 */
-	public void addUsers(String user_list) {
+	void addUsers(String user_list) {
 		synchronized (users) {
 			users.clear();
 			List<String> userList = parseDoubleDollarList(user_list);
@@ -81,8 +81,8 @@ public class UserManager {
 			}
 		}
 	}
-
-	public void updateUserIPs(String list) {
+	
+	void updateUserIPs(String list) {
 		List<String> userList = parseDoubleDollarList(list);
 		for (int i = 0; i < userList.size(); i++) {
 			String userNip = userList.get(i);
@@ -91,8 +91,10 @@ public class UserManager {
 			String ip = userNip.trim().substring(spcpos);
 
 			User u = getUser(user);
-			u.setUserIP(ip);
-			_bot.getDispatchThread().callOnUpdateMyInfo(user);
+			if(u != null) {
+				u.setUserIP(ip);
+				_bot.getDispatchThread().callOnUpdateMyInfo(user);
+			}
 		}
 	}
 
@@ -101,7 +103,7 @@ public class UserManager {
 	 * data structure then it is automatically added.
 	 * @param user_list
 	 */
-	public void addOps(String user_list) {
+	void addOps(String user_list) {
 		List<String> userList = parseDoubleDollarList(user_list);
 		for (int i = 0; i < userList.size(); i++) {
 			String user = userList.get(i);
@@ -164,7 +166,7 @@ public class UserManager {
 	 * 
 	 * @param user Nick of the user who joined
 	 */
-	public void userJoin(String user) {
+	void userJoin(String user) {
 		boolean contains = false;
 		synchronized (users) {
 			for (User u : users) {
@@ -279,7 +281,7 @@ public class UserManager {
 	 * 
 	 * @param info Info from the user that will be parsed
 	 */
-	public void SetInfo(String info) {
+	void SetInfo(String info) {
 		StringBuffer user, desc, conn, mail, share;
 		int index = 0;
 		user = new StringBuffer();
@@ -315,15 +317,22 @@ public class UserManager {
 			share.append(info.charAt(index));
 			index++;
 		}
-
+		
 		synchronized (users) {
 			Iterator<User> i = users.iterator();
+			boolean found = false;
 			while (i.hasNext()) {
 				User u = i.next();
 				if (u.username().equalsIgnoreCase(strUser)) {
 					u.setInfo(desc.toString(), conn.toString(), mail.toString(), share.toString());
+					found = true;
 					break;
 				}
+			}
+			if(!found) {
+				User u = new User(strUser, _bot);
+				users.add(u);
+				u.setInfo(desc.toString(), conn.toString(), mail.toString(), share.toString());
 			}
 		}
 

@@ -38,7 +38,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.2
+ * @version 0.2.0
  */
 abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDCBotListener {
 
@@ -53,7 +53,7 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
      * @param botname Name of the bot as it will appear in the list of users.
      * @param botIP Your IP.
      * @param listenPort The port on your computer where jdcbot should listen for incoming connections from clients.
-     * @param password Passsword if required, you could put anything if no password is needed.
+     * @param password Password if required, you could put anything if no password is needed.
      * @param description Description of your bot as it will appear in the list of users. On your description is appended standard description.
      * @param conn_type Your connection type, for details look <a href="http://www.teamfair.info/wiki/index.php?title=%24MyINFO">here</a>.
      * <b>Note</b> that this setting is just a mere imitation. It will not actually limit upload speed.
@@ -89,7 +89,7 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
 
     /**
      * Creates a new EventjDCBotAdapter instance which can co-exist with other EventjDCBotAdapter instances, all
-     * sharing the shareable resources like the server sockets, etc.
+     * sharing the sharable resources like the server sockets, etc.
      * @param multiHubsAdapter An instance of MultiHubsAdapter.
      * @throws IOException 
      * @throws BotException 
@@ -152,5 +152,8 @@ abstract public class EventjDCBotAdapter extends EventjDCBot implements EventjDC
     public void on_UploadStart(jDCBot src, User user, DUEntity due) {}
     
     @Override
-    public void on_SendCommandFailed(String msg, Throwable e, JMethod src) {}
+    public void on_SendCommandFailed(jDCBot src, String msg, Throwable e, JMethod srcMethod) {}
+    
+    @Override
+    public void on_HubName(jDCBot src, String hubName) {}
 }

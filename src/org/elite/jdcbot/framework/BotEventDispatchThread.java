@@ -30,7 +30,7 @@ import org.slf4j.Logger;
 /**
  * Created on 31-May-08
  * @since 0.7.1
- * @version 0.2
+ * @version 0.3
  * @author AppleGrew
  * 
  */
@@ -55,7 +55,8 @@ public class BotEventDispatchThread extends Thread {
 		onConnect2Client,
 		onConnect,
 		onSearchResult,
-		onSendCommandFailed
+		onSendCommandFailed,
+		onHubName
 	}
 
 	private List<DispatchEntity> dispatch;
@@ -169,6 +170,9 @@ public class BotEventDispatchThread extends Thread {
 				case onSendCommandFailed:
 					_bot.onSendCommandFailed((String) getArg(args, 0), (Throwable) getArg(args, 1), (JMethod) getArg(args, 1));
 					break;
+				case onHubName:
+					_bot.onHubName((String) getArg(args, 0));
+					break;
 				default:
 					try {
 						throw new NoSuchMethodException("Method :" + method);
@@ -186,7 +190,7 @@ public class BotEventDispatchThread extends Thread {
 	}
 
 	private Object getArg(Object args[], int i) {
-		return (args[i] == null ? null : args[i]);
+		return (args == null ? null : args[i]);
 	}
 
 	public void stopIt() {
@@ -204,7 +208,7 @@ public class BotEventDispatchThread extends Thread {
 		this.interrupt();
 	}
 
-	//*********Proxy funtions*********/
+	//*********Proxy functions*********/
 	void callOnDownloadComplete(User user, DUEntity due, boolean success, BotException e) {
 		DispatchEntity de = new DispatchEntity();
 		de.method = Method.onDownloadComplete;
@@ -329,6 +333,13 @@ public class BotEventDispatchThread extends Thread {
 		DispatchEntity de = new DispatchEntity();
 		de.method = Method.onSendCommandFailed;
 		de.params = new Object[] { msg, e, src };
+		addToDispath(de);
+	}
+	
+	public void callOnHubName(String hubName) {
+		DispatchEntity de = new DispatchEntity();
+		de.method = Method.onHubName;
+		de.params = new Object[] { hubName };
 		addToDispath(de);
 	}
 }

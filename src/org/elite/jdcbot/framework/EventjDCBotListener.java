@@ -29,7 +29,7 @@ import org.elite.jdcbot.shareframework.SearchSet;
  *
  * @author AppleGrew
  * @since 1.0
- * @version 0.1.1
+ * @version 0.2.0
  * @see EventjDCBotListenerAdapter
  * @see EventjDCBotAdapter
  */
@@ -160,7 +160,7 @@ public interface EventjDCBotListener {
      * The implementation of this method in the jDCBot abstract class performs no actions and may be overridden as required.
      * @param ip The IP of the user who made the search.
      * @param port The port to which the search result should be sent.
-     * @param search Contains all the details abot the search made.
+     * @param search Contains all the details about the search made.
      */
     public abstract void on_ActiveSearch(jDCBot src, String ip, int port, SearchSet search);
 
@@ -205,7 +205,18 @@ public interface EventjDCBotListener {
 	 * mention this in its comment.
 	 * @param msg
 	 * @param exception
-	 * @src The source method
+	 * @param srcMethod The source method
 	 */
-    public abstract void on_SendCommandFailed(String msg, Throwable e, JMethod src);
+    public abstract void on_SendCommandFailed(jDCBot src, String msg, Throwable e, JMethod srcMethod);
+    
+    /**
+	 * Called when hub announces its name. Note
+	 * that for different users the same hub may
+	 * send different hub name, also the hub name
+	 * may change several times during a single
+	 * session, so do not use this to uniquely
+	 * identify a hub. Instead use {@link User#getHubSignature()}. 
+	 * @param hubName Hub's name.
+	 */
+	public abstract void on_HubName(jDCBot src, String hubName);
 }
