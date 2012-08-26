@@ -1,5 +1,4 @@
-The changelog may not document all chnages made. Best
-way is view diffs at http://jdcbot.cvs.sourceforge.net/.
+The changelog may not document all chnages made. Best way is view diffs.
 
 -- v0.6 2005-09-12 --
 * Added UserMenager and User classes for easier work with users
