@@ -45,7 +45,7 @@ import org.xml.sax.helpers.DefaultHandler;
 /**
  * Use this to search dumps created by SheriffBot.<br>
  * <p>
- * Using this you can search for vareity of information in the dumps. Just give it the directory name of the dump files
+ * Using this you can search for variety of information in the dumps. Just give it the directory name of the dump files
  * and give it the search query. Run it to learn about the options it supports.<br>
  * <p>
  * Please note though, that this uses seems to use too much processing power and is quite slow. I still don't know
@@ -160,59 +160,61 @@ public class FilelistDumpSearcher {
 
     public Vector<String> search(String dumpfile, String srfor, int type, long size, boolean showTTH, boolean phpSerialize, String hubname) {
 	Vector<String> results = new Vector<String>();
+	BufferedInputStream ubin = null;
+	CBZip2InputStream bin = null;
 
 	try {
-	    SAXParserFactory factory = SAXParserFactory.newInstance();
-	    SAXParser parser = factory.newSAXParser();
-	    //XMLReader parser = XMLReaderFactory.createXMLReader();
-	    BufferedInputStream ubin = new BufferedInputStream(new FileInputStream(dumpfile));
-	    ubin.read(new byte[2]); //To discard the starting BZ flag.
-	    CBZip2InputStream bin = new CBZip2InputStream(ubin);
+		SAXParserFactory factory = SAXParserFactory.newInstance();
+		SAXParser parser = factory.newSAXParser();
+		//XMLReader parser = XMLReaderFactory.createXMLReader();
+		ubin = new BufferedInputStream(new FileInputStream(dumpfile));
+		ubin.read(new byte[2]); //To discard the starting BZ flag.
+		bin = new CBZip2InputStream(ubin);
 
-	    String line = null;
-	    int c = 0;
-	    line = "";
-	    while ((c = bin.read()) != '\n' && c != -1)
-		line = line + (char) c;
-	    String dnt = line;
-	    if (c == -1) {
-		dnt = "";
-		return null;
-	    }
+		String line = null;
+		int c = 0;
+		line = "";
+		while ((c = bin.read()) != '\n' && c != -1)
+			line = line + (char) c;
+		String dnt = line;
+		if (c == -1) {
+			dnt = "";
+			return null;
+		}
 
-	    line = "";
-	    while ((c = bin.read()) != '\n' && c != -1)
-		line = line + (char) c;
-	    if (c == -1)
-		return null;
+		line = "";
+		while ((c = bin.read()) != '\n' && c != -1)
+			line = line + (char) c;
+		if (c == -1)
+			return null;
 
-	    if (!phpSerialize)
-		results.add("Dump's Date and Time stamp: " + dnt + "\n==========================\n" + "hubname: " + line);
-	    else
-		results.add("$" + dnt + "\n" + "|" + line);
+		if (!phpSerialize)
+			results.add("Dump's Date and Time stamp: " + dnt + "\n==========================\n" + "hubname: " + line);
+		else
+			results.add("$" + dnt + "\n" + "|" + line);
 
-	    if (hubname != null && !line.trim().toLowerCase().contains(hubname.toLowerCase().subSequence(0, hubname.length()))) {
-		results.add("No hits.");
-		return results;
-	    }
+		if (hubname != null && !line.trim().toLowerCase().contains(hubname.toLowerCase().subSequence(0, hubname.length()))) {
+			results.add("No hits.");
+			return results;
+		}
 
-	    while ((c = bin.read()) != '\n' && c != -1)
-		;
+		while ((c = bin.read()) != '\n' && c != -1)
+			;
 
-	    FilelistHandler handler = new FilelistHandler(srfor, type, size, showTTH, phpSerialize, results);
-	    //parser.setContentHandler(handler);
-	    try {
-		parser.parse(bin, handler);
-		//InputSource insrc = new InputSource(bin);
-		//insrc.setEncoding("UTF-8");
-		//parser.parse(insrc);
-	    } catch (org.xml.sax.SAXParseException saxe) {
-		saxe.printStackTrace();
-	    }
+		FilelistHandler handler = new FilelistHandler(srfor, type, size, showTTH, phpSerialize, results);
+		//parser.setContentHandler(handler);
+		try {
+			parser.parse(bin, handler);
+			//InputSource insrc = new InputSource(bin);
+			//insrc.setEncoding("UTF-8");
+			//parser.parse(insrc);
+		} catch (org.xml.sax.SAXParseException saxe) {
+			saxe.printStackTrace();
+		}
 
-	    if (results.size() == 1) {
-		results.add("No hits.");
-	    }
+		if (results.size() == 1) {
+			results.add("No hits.");
+		}
 
 	} catch (FileNotFoundException e) {
 	    e.printStackTrace();
@@ -225,6 +227,14 @@ public class FilelistDumpSearcher {
 	    System.err.println("Line: " + e.getLineNumber() + "; Col:" + e.getColumnNumber());
 	} catch (SAXException e) {
 	    e.printStackTrace();
+	} finally {
+		if (bin != null) {
+			try {
+				bin.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 	return results;
 

@@ -1237,6 +1237,11 @@ public class ShareManager {
 				logger.error("Exception in close()", e);
 				notifyListeners(false, e);
 			}
+			try {
+				fc.close();
+			} catch (IOException e) {
+				logger.warn("Exception in close()", e);
+			}
 		}
 
 		private void notifyListeners(boolean success, Exception e) {

@@ -234,66 +234,68 @@ public class FLDir implements Serializable, FLInterface {
 		    continue;
 
 		switch (For.data_type) {
-		    case ANY:
+		case ANY:
 			if (GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
-			}
-			break;
-		    case AUDIO:
-			if (GlobalFunctions.hasExt(f.name, new String[] { "mp3", "mp2", "wav", "au", "rm", "mid", "sm", "ogg" })
-				&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
-			}
-			break;
-		    case COMPRESSED:
-			if (GlobalFunctions.hasExt(f.name, new String[] { "zip", "arj", "rar", "lzh", "gz", "z", "arc", "pak", "bz2" })
-				&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
-			}
-			break;
-		    case DOCUMENT:
-			if (GlobalFunctions.hasExt(f.name, new String[] { "doc", "txt", "wri", "pdf", "ps", "tex", "ppt", "pptx", "docx" })
-				&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
-			}
-			break;
-		    case EXECUTABLE:
-			if (GlobalFunctions.hasExt(f.name, new String[] { "pm", "exe", "bat", "com", "sh", "class" })
-				&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
-			} else if (!GlobalFunctions.isWindowsOS()) {
-			    File ff = new File(f.path);
-			    if (ff.exists() && ff.canExecute() && GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
 				sr.add(f);
 				owners.add(pwd);
-			    }
 			}
 			break;
-		    case PICTURE:
+		case AUDIO:
+			if (GlobalFunctions.hasExt(f.name, new String[] { "mp3", "mp2", "wav", "au", "rm", "mid", "sm", "ogg" })
+					&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+				sr.add(f);
+				owners.add(pwd);
+			}
+			break;
+		case COMPRESSED:
+			if (GlobalFunctions.hasExt(f.name, new String[] { "zip", "arj", "rar", "lzh", "gz", "z", "arc", "pak", "bz2" })
+					&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+				sr.add(f);
+				owners.add(pwd);
+			}
+			break;
+		case DOCUMENT:
+			if (GlobalFunctions.hasExt(f.name, new String[] { "doc", "txt", "wri", "pdf", "ps", "tex", "ppt", "pptx", "docx" })
+					&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+				sr.add(f);
+				owners.add(pwd);
+			}
+			break;
+		case EXECUTABLE:
+			if (GlobalFunctions.hasExt(f.name, new String[] { "pm", "exe", "bat", "com", "sh", "class" })
+					&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+				sr.add(f);
+				owners.add(pwd);
+			} else if (!GlobalFunctions.isWindowsOS()) {
+				File ff = new File(f.path);
+				if (ff.exists() && ff.canExecute() && GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+					sr.add(f);
+					owners.add(pwd);
+				}
+			}
+			break;
+		case PICTURE:
 			if (GlobalFunctions.hasExt(f.name, new String[] { "gif", "jpg", "jpeg", "bmp", "pcx", "png", "wmf", "psd", "tif" })
-				&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
+					&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+				sr.add(f);
+				owners.add(pwd);
 			}
 			break;
-		    case VIDEO:
+		case VIDEO:
 			if (GlobalFunctions.hasExt(f.name, new String[] { "mpg", "mpeg", "avi", "asf", "mov", "mp4", "mkv", "divx", "rmvb",
-				"rm", "ogg" })
-				&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
+					"rm", "ogg" })
+					&& GlobalFunctions.matches(ss, f.name) && fulfillsSizeCriteria(f, For)) {
+				sr.add(f);
+				owners.add(pwd);
 			}
 			break;
-		    case TTH:
+		case TTH:
 			if (f.hash.equalsIgnoreCase(For.string.trim()) && fulfillsSizeCriteria(f, For)) {
-			    sr.add(f);
-			    owners.add(pwd);
+				sr.add(f);
+				owners.add(pwd);
 			}
+			break;
+		default:
 			break;
 		}
 	    }

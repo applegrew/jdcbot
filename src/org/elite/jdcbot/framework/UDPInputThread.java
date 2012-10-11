@@ -74,6 +74,7 @@ public class UDPInputThread implements Runnable {
 				_inputThreadTrgt.onUDPExceptionClose(e);
 			}
 		}
+		logger.info("UDP thread now terminated.");
 	}
 
 	/**

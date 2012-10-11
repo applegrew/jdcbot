@@ -7,7 +7,7 @@ import org.elite.jdcbot.framework.*;
 import org.elite.jdcbot.shareframework.*;
 import org.elite.jdcbot.util.GlobalFunctions;
 
-public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerListener {
+public class BotLogic implements ShareManagerListener {
 	// bot data
 	private BotConfig config;
 	private jDCBot bot;
@@ -17,12 +17,16 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 	private List<File> includes = new ArrayList<File>();
 	private List<File> excludes = new ArrayList<File>();
 	private List<String> removes = new ArrayList<String>();
+	private PrintStream log;
 	
-	/*public BotLogica(MultiHubsAdapter multiHubsAdapter) throws IOException,
-	BotException {
-		super(multiHubsAdapter);
-	}*/
-
+	public BotLogic() {
+		this(System.out);
+	}
+	
+	public BotLogic(PrintStream log) {
+		this.log = log;
+	}
+	
 	@Override
 	public void onFilelistDownloadFinished(User u, boolean success, Exception e) {
 		if (success) {
@@ -31,37 +35,37 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 				"File list from " + u.username() + "\n" + flm.getFilelist().printTree() + "\nFiles shared size = "
 				+ GlobalFunctions.trimDecimals(flm.getFilelist().getSize(false) / 1024 / 1024, 2) + " MB"
 				+ "\nClient ID = " + flm.getFilelist().getCID();
-			System.out.println(out);
+			log.println(out);
 		} else {
-			System.out.println("The user file list download from " 
+			log.println("The user file list download from " 
 			+ u.username() + " failed. Got the exception: " + e.getMessage());
 		}
 	}
 
 	@Override
 	public void hashingOfFileStarting(String file) {
-		System.out.println("Starting hash in file: " + file);
+		log.println("Starting hash in file: " + file);
 	}
 
 	@Override
 	public void hashingJobFinished() {
-		System.out.println("The hash process has finished");
+		log.println("The hash process has finished");
 	}
 
 	@Override
 	public void hashingOfFileComplete(String f, boolean success, HashException e) {
-		System.out.println("Hashing of " + f + " " + (success ? "is complete."
+		log.println("Hashing of " + f + " " + (success ? "is complete."
 						: " failed due to exception: " + e.getMessage()));
 	}
 
 	@Override
 	public void hashingOfFileSkipped(String f, String reason) {
-		System.out.println("Hashing of  " + f + "skipped because " + reason);
+		log.println("Hashing of  " + f + "skipped because " + reason);
 	}
 
 	@Override
 	public void onMiscMsg(String msg) {
-		System.out.println("Error: " + msg);
+		log.println("Error: " + msg);
 	}
 
 	public void configBot(String nombreBot, String iPBot,
@@ -87,18 +91,27 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 		boolean settingDirsSuccess = false;
 
 		try {
+			if (mha != null) {
+				mha.terminate();
+			}
 			mha = new MultiHubsAdapter(config);
 
 			mha.setDirs(dirConfig, dirOthers); // this must exist
 			settingDirsSuccess = true;
 
 			if (!settingDirsSuccess) {
-				System.out.println("Setting of directories was not successfull. Aborting.");
+				log.println("Setting of directories was not successfull. Aborting.");
 				disconnect();
 				return;
 			}
 
+			if (shareManager != null) {
+				shareManager.close();
+			}
 			shareManager = new ShareManager(mha);
+			if (dc != null) {
+				dc.close();
+			}
 			dc = new DownloadCentral(mha);
 
 			mha.setShareManager(shareManager);
@@ -106,24 +119,32 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 
 			shareManager.addListener(this);
 			
-			// creates the bot with the previous config
+			// creates the bot with the above config
+			if (bot != null) {
+				bot.terminate();
+			}
 			bot = new jDCBot(mha) {
 			};
 		} catch (IOException e) {
 			e.printStackTrace();
+			log.println("Bot not initialized due to :" + e);
 		}
 	}
 
 	/** Connects with the server */
-	public void connect(String server, int serverPort) {
+	public boolean connect(String server, int serverPort) {
+		if (bot == null) {
+			log.println("Bot not initialized. Cannot connect.");
+			return false;
+		}
 
 		try {
 			mha.connect(server, serverPort, bot);
 			Thread.sleep(3000); // time to get the user's info
 			bot.SendPublicMessage(bot.getBotName() + " is connected.");
-
+			return true;
 		} catch (IOException e) {
-			System.out.println("Can't find the server");
+			log.println("Can't find the server");
 			e.printStackTrace();
 			disconnect();
 		} catch (BotException e) {
@@ -133,17 +154,19 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 			e.printStackTrace();
 			disconnect();	
 		}
+		return false;
 	}
 
 	/** Close the connection */
 	public void disconnect() {
 		try {
 			mha.terminate();
-			//bot.terminate();
 		} catch (BotException e){
+			log.println("Error in disconnection: " + e);
 			e.printStackTrace();
 		}
 		catch (Exception e) {
+			log.println("Error in disconnection: " + e);
 			e.printStackTrace();
 		}
 	}
@@ -151,12 +174,12 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 	/**	Search for an user in the hub's user list */
 	public User searchUser(String usr) {
 		if (!mha.UserExist(usr)) {
-			System.out.println("Couldn't find the user " + usr);
+			log.println("Couldn't find the user " + usr);
 			return null;
 		}
 		List<User> u = mha.getUsers(usr);
 		if (u.size() > 1)
-			System.out.println("Getting the user connected to: " + u.get(0).getHubSignature() + ".");
+			log.println("Getting the user connected to: " + u.get(0).getHubSignature() + ".");
 		return u.get(0);
 	}
 
@@ -165,7 +188,7 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 		try {
 			User u = searchUser(usr);
 			if (u != null) {
-				System.out.println("Reading file list from " + usr);
+				log.println("Reading file list from " + usr);
 				shareManager.downloadOthersFileList(u);
 			}
 		} catch (BotException e) {
@@ -181,7 +204,7 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 			mha.Search(s);
 		} catch (IOException e) {
 			e.printStackTrace();
-			System.out.println("Error: " + e.getMessage());
+			log.println("Error: " + e.getMessage());
 		}
 	}
 
@@ -190,7 +213,7 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 		try {
 			File f = new File(filePath);
 			includes.add(f);
-			System.out.println("The " + filePath + " has been added.");
+			log.println("The " + filePath + " has been added.");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -201,7 +224,7 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 		try {
 			File f = new File(filePath);
 			excludes.add(f);
-			System.out.println("The " + filePath + " has been excluded.");
+			log.println("The " + filePath + " has been excluded.");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -211,14 +234,15 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 	public void removeDirectory(String filePath) {
 		try {
 			removes.add(filePath);
-			System.out.println(filePath + " added to excludes list.");
+			log.println(filePath + " added to excludes list.");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	/** Procees all the list (add, exclude, removes) then
-		start hash process
+	/**
+	 * Process all the list (add, exclude, removes) then
+	 * start hash process
 	 */
 	public void processList() {
 		try {
@@ -250,7 +274,7 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 	
 	/** Check the hashing process*/
 	public void hashstat(){
-		System.out.println("\nHashing: " + shareManager.getCurrentlyHashedFileName() + "\n%Complete: "
+		log.println("\nHashing: " + shareManager.getCurrentlyHashedFileName() + "\n%Complete: "
 				+ shareManager.getPercentageHashCompletion() + "%\nHashing speed: "
 				+ GlobalFunctions.trimDecimals(shareManager.getHashingSpeed() / 1024 / 1024, 2) + " MBps\nRemaining time: "
 				+ GlobalFunctions.trimDecimals(shareManager.getTimeLeft2CompleteHashing() / 60, 2) + " min(s)");
@@ -264,14 +288,14 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 	// own file list or downloaded file lists of other users.\n"
 
 	// download <magnet uri> - It will automatically search for files
-	// mathcing this magnet URI and download it.\n"
+	// matching this magnet URI and download it.\n"
 	
 	/** Download the file using uri*/
 	public void downloadFile (String uri)
 	{
 		Query Q[] = getSegmentedQuery(uri.substring(uri.indexOf('?') + 1));
 		if (Q == null) {
-			System.out.println("Error! Maybe the URI is not in proper format");
+			log.println("Error! Maybe the URI is not in proper format");
 			return;
 		}
 		
@@ -284,7 +308,7 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 				try {
 					size = Long.parseLong(q.value);
 				} catch (NumberFormatException e) {
-					System.out.println("Please enter a valid magnet uri. Error occured while trying to parse file size");
+					log.println("Please enter a valid magnet uri. Error occured while trying to parse file size");
 					return;
 				}
 			} else if (q.query.equalsIgnoreCase("dn")) {
@@ -293,17 +317,17 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 		}
 
 		if (size <= 0) {
-			System.out.println("Invalid value of file size: " + size + ". Make sure you have entered a valid magnet uri.");
+			log.println("Invalid value of file size: " + size + ". Make sure you have entered a valid magnet uri.");
 			return;
 		}
 		if (tth == null || name == null) {
-			System.out.println("Error occured during parsing the magnet uri. Make sure this is valid.");
+			log.println("Error occured during parsing the magnet uri. Make sure this is valid.");
 			return;
 		}
 		
 		File file = new File(name);
 		if (file.exists()) {
-			System.out.println("Cannot download. A file with this name already exists in download directory.");
+			log.println("Cannot download. A file with this name already exists in download directory.");
 			return;
 		}
 
@@ -317,12 +341,12 @@ public class BotLogic /*extends EventjDCBotAdapter*/ implements ShareManagerList
 	}
 	
 	// dstat [<magnet uri>] - This simple command simply show the various
-	// stats realting the download of file represented by the given magnet
+	// stats relating the download of file represented by the given magnet
 	// URI.\n"
 
 	// cancel (download|upload|hash) [<magnet uri>] - If any file is being
-	// downloaded with this magnet URI then it will be cancelled. Arguemtn
-	// options 'upload' and 'hash' doesn't requir magnet URI argument.
+	// downloaded with this magnet URI then it will be cancelled. Argument
+	// options 'upload' and 'hash' doesn't require magnet URI argument.
 	// 'upload' will cancel all running uploads and 'hash' will cancel the
 	// hashing.\n"
 	

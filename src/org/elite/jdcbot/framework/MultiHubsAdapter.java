@@ -176,13 +176,13 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	 * @throws IIOException If the given path are not directories.
 	 * @throws InstantiationException The read object from 'fileListHash' is not instance of FLDir.
 	 * @throws ClassNotFoundException Class of FLDir serialized object cannot be found.
-	 * @throws IOException Error occured while reading from 'fileListHash'.
+	 * @throws IOException Error occurred while reading from 'fileListHash'.
 	 */
 	public void setDirs(String path2DirForMiscData, String path2IncompleteDir) throws IIOException, FileNotFoundException, IOException {
 		File miscDir = new File(path2DirForMiscData);
 		File incompleteDir = new File(path2IncompleteDir);
 		if (!miscDir.exists() || !incompleteDir.exists())
-			throw new FileNotFoundException();
+			throw new FileNotFoundException("'" + path2DirForMiscData + " or '" + path2IncompleteDir + "' does not exist.");
 		if (!miscDir.isDirectory())
 			throw new IIOException("Given path '" + path2DirForMiscData + "' is not a directory.");
 		if (!incompleteDir.isDirectory())
@@ -198,10 +198,16 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	}
 	
 	void addBot(jDCBot bot) {
+		if (bot == null) {
+			throw new NullPointerException("Cannot add null bot.");
+		}
 		bots.add(bot);
 	}
 	
 	void removeBot(jDCBot bot) {
+		if (bot == null) {
+			throw new NullPointerException("Cannot remove null bot.");
+		}
 		bots.remove(bot);
 	}
 
@@ -318,7 +324,7 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 		}
 	}
 
-	public void terminate() {
+	public synchronized void terminate() {
 		for (jDCBot bot : bots)
 			bot.terminate();
 		if (_udp_inputThread != null)
@@ -327,6 +333,11 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 			shareManager.close();
 		if (downloadCentral != null)
 			downloadCentral.close();
+		try {
+			socketServer.close();
+		} catch (IOException e) {
+			logger.warn("Exception in terminate.", e);
+		}
 	}
 
 	public void handleUDPCommand(String rawCommand, String ip, int port) {
@@ -562,6 +573,9 @@ public class MultiHubsAdapter implements UDPInputThreadTarget, BotInterface {
 	 * thrown.
 	 */
 	public void connect(String hostname, int port, jDCBot newbot) throws IOException, BotException {
+		if (newbot == null) {
+			throw new NullPointerException("Cannot connect with null bot");
+		}
 		synchronized (bots) {
 			for (jDCBot bot : bots)
 				if (Hub.prepareHubSignature(hostname, port).equals(bot.getHubSignature()))

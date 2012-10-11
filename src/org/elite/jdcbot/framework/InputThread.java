@@ -79,6 +79,7 @@ class InputThread extends DCIO implements Runnable {
 				logger.error("Exception in run()", e);
 			_inputThreadTrgt.disconnected();
 		}
+		logger.info("Input thread now terminated.");
 	}
 
 	protected void onReadingCommand() {}

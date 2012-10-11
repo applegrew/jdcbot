@@ -2,6 +2,9 @@ package org.elite.jdcbot.examples;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.text.*;
 import java.util.*;
 import javax.swing.*;
@@ -11,9 +14,7 @@ import org.elite.jdcbot.framework.User;
 
 public class BotMain extends JFrame implements ActionListener {
 	
-	// logic
 	private static final long serialVersionUID = 1L;
-	private BotLogic logic = new BotLogic();
 
 	// GUI
 	JMenuBar mnuBar = new JMenuBar();
@@ -37,8 +38,8 @@ public class BotMain extends JFrame implements ActionListener {
 	JLabel lblDir2 = new JLabel("File path: ");
 	JTextField fieldDir2 = new JTextField("C:/tmp/Incomplete",20); 
 
-	JTextArea textArea = new JTextArea();
-	JScrollPane scrollPane = new JScrollPane(textArea);
+	JTextArea txtLog = new JTextArea();
+	JScrollPane scrollPane = new JScrollPane(txtLog);
 
 	JPanel pnlUsers = new JPanel();
 	JTextField fieldUser = new JTextField("njmartinez");
@@ -81,6 +82,12 @@ public class BotMain extends JFrame implements ActionListener {
 	JComboBox cmbStates = new JComboBox(states);
 	
 	JTextField fieldInformation = new JTextField();
+	
+	// Common
+	UiLogStream log = new UiLogStream();
+	
+	// Logic
+	private BotLogic logic = new BotLogic(log);
 
 	public BotMain() {
 		
@@ -90,7 +97,7 @@ public class BotMain extends JFrame implements ActionListener {
 		setJMenuBar(mnuBar);
 		
 		btnDisconnect.setEnabled(false);
-		textArea.setEditable(false);
+		txtLog.setEditable(false);
 		scrollPane.setPreferredSize(new Dimension(250, 250));
 		fieldInformation.setEditable(false);
 		cmbStates.setSelectedIndex(1);
@@ -194,7 +201,9 @@ public class BotMain extends JFrame implements ActionListener {
 		chooser.setAcceptAllFileFilterUsed(false);
 	}
 
-	// handles the buttons action
+	/** 
+	 * Handles the buttons' actions.
+	 */
 	public void actionPerformed(ActionEvent ae) {
 		SimpleDateFormat formatter = new SimpleDateFormat("hh:mm:ss");
 		Calendar calendarNow = Calendar.getInstance();
@@ -222,20 +231,21 @@ public class BotMain extends JFrame implements ActionListener {
 					Integer.parseInt(fieldUploadSlots.getText()),
 					Integer.parseInt(fieldDownloadSlots.getText()),
 					isActive, fieldDir1.getText(), fieldDir2.getText());
-			logic.connect(fieldServerDC.getText(), Integer.parseInt(fieldServerPortDC.getText()));
-			btnConnect.setEnabled(false);
-			btnDisconnect.setEnabled(true);
-			textArea.append(formatter.format(calendarNow.getTime()) + ": Is connected now\n");
-			fieldInformation.setText("Connected");
+			if (logic.connect(fieldServerDC.getText(), Integer.parseInt(fieldServerPortDC.getText()))) {
+				btnConnect.setEnabled(false);
+				btnDisconnect.setEnabled(true);
+				log.println(formatter.format(calendarNow.getTime()) + ": Is connected now");
+				fieldInformation.setText("Connected");
+			}
 		} else if (ae.getSource() == btnDisconnect) {
 			logic.disconnect();
 			btnConnect.setEnabled(true);
 			btnDisconnect.setEnabled(false);
-			textArea.append(formatter.format(calendarNow.getTime()) + ": Is disconnected now\n");
+			log.println(formatter.format(calendarNow.getTime()) + ": Is disconnected now");
 			fieldInformation.setText("Disconnected");
 		} else if (ae.getSource() == btnGetUserFiles) {
 			logic.readFiles(fieldUser.getText());
-			textArea.append(formatter.format(calendarNow.getTime()) + ": Get user files finished\n");
+			log.println(formatter.format(calendarNow.getTime()) + ": Get user files finished");
 			fieldInformation.setText("Get user files finished");
 		} else if (ae.getSource() == btnSearch) {
 			String searchText = fieldSearch.getText();
@@ -243,12 +253,12 @@ public class BotMain extends JFrame implements ActionListener {
 				fieldInformation.setText("Enter a word to start searching");
 			} else {
 				logic.search(searchText);
-				textArea.append(formatter.format(calendarNow.getTime()) + ": Search finished\n");
+				log.println(formatter.format(calendarNow.getTime()) + ": Search finished");
 				fieldInformation.setText("Search finished");
 			}
 		} else if (ae.getSource()==btnDownload){
 			logic.downloadFile(fieldFile.getText());
-			textArea.append(formatter.format(calendarNow.getTime()) + ": Starting download process\n");
+			log.println(formatter.format(calendarNow.getTime()) + ": Starting download process");
 			fieldInformation.setText("Processing a download");
 		}else if(ae.getSource() == btnAddDir){		
 			int selection = chooser.showOpenDialog(this);
@@ -256,7 +266,7 @@ public class BotMain extends JFrame implements ActionListener {
 				String directory = chooser.getSelectedFile().toString();
 				logic.addDirectory(directory);
 				JOptionPane.showMessageDialog(getRootPane(), "This folder has been added to the list:\n" + directory);
-				textArea.append(formatter.format(calendarNow.getTime())+": This folder has been added to the list: "+ directory+"\n");
+				log.println(formatter.format(calendarNow.getTime())+": This folder has been added to the list: "+ directory);
 				fieldInformation.setText("Folder adicionado");
 			}	  
 		} else if(ae.getSource() == btnExcludeDir){
@@ -265,7 +275,7 @@ public class BotMain extends JFrame implements ActionListener {
 				String directory = chooser.getSelectedFile().toString();
 				logic.excludeDirectory(directory);
 				JOptionPane.showMessageDialog(getRootPane(), "This folder has beend excluded from the list:\n" + directory);
-				textArea.append(formatter.format(calendarNow.getTime())+": This folder has beend excluded from the list: "+ directory+"\n");
+				log.println(formatter.format(calendarNow.getTime())+": This folder has beend excluded from the list: "+ directory);
 				fieldInformation.setText("Folder excluido");
 			}
 		} else if(ae.getSource() == btnRemoveDir){
@@ -274,14 +284,33 @@ public class BotMain extends JFrame implements ActionListener {
 				String directory = chooser.getSelectedFile().toString();
 				logic.removeDirectory(directory);
 				JOptionPane.showMessageDialog(getRootPane(), "This folder has been removed from the list:\n" + directory);
-				textArea.append(formatter.format(calendarNow.getTime())+": This folder has been removed from the list: "+ directory+"\n");
+				log.println(formatter.format(calendarNow.getTime())+": This folder has been removed from the list: "+ directory);
 				fieldInformation.setText("Folder retirado");
 			}
 		} else if(ae.getSource() == btnProcessList){
 			logic.processList();
 			JOptionPane.showMessageDialog(getRootPane(), "The list has been processed");
-			textArea.append(formatter.format(calendarNow.getTime())+": The list has been updated\n");
+			log.println(formatter.format(calendarNow.getTime())+": The list has been updated");
 			fieldInformation.setText("List updated");
+		}
+	}
+	
+	private class UiLogStream extends PrintStream {
+		public UiLogStream() {
+			super(new OutputStream() {
+				StringBuffer buffer = new StringBuffer();
+
+				@Override
+				public synchronized void write(int ch) throws IOException {
+					buffer.append((char) ch);
+				}
+				
+				@Override
+				public synchronized void flush() {
+					txtLog.append(buffer.toString());
+					buffer = new StringBuffer();
+				}
+			}, true);
 		}
 	}
 

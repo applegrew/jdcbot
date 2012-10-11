@@ -95,6 +95,8 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	protected UserManager um;
 	protected DownloadManager downloadManager;
 	protected UploadManager uploadManager;
+	
+	protected boolean isTerminated = false;
 	/**
 	 * In constructor a default ShareManager is
 	 * instantiated. This can be set to a custom
@@ -609,6 +611,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 *                 if the server would not let us join it because of bad password or if there exist user with the same name.
 	 */
 	synchronized public final void connect(String hostname, int port) throws IOException, BotException {
+		
+		if (isTerminated) {
+			throw new IOException("Bot terminated. You can no longer call connect(). Create a new instance.");
+		}
 
 		String buffer;
 
@@ -924,6 +930,10 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 	 * {@link #connect(String, int) connect} is not supposed to be called after calling this method. 
 	 */
 	public void terminate() {
+		if (isTerminated) {
+			return;
+		}
+		
 		quit();
 		uploadManager.close();
 		downloadManager.close();
@@ -940,6 +950,14 @@ public abstract class jDCBot extends InputThreadTarget implements UDPInputThread
 		if(multiHubsAdapter != null) {
 			multiHubsAdapter.removeBot(this);
 		}
+		if (!isInMultiHubsMode() && socketServer != null && !socketServer.isClosed()) {
+			try {
+				socketServer.close();
+			} catch (IOException e) {
+				logger.warn("Exception in terminate.", e);
+			}
+		}
+		isTerminated = true;
 	}
 
 	@Override

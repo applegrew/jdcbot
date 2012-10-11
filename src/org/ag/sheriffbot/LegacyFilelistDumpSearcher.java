@@ -136,9 +136,10 @@ public class LegacyFilelistDumpSearcher {
 	String currentUser = "";
 	Vector<String> dirs = new Vector<String>();
 	int currentlevel = -1;
+	BufferedReader bin = null;
 
 	try {
-	    BufferedReader bin = new BufferedReader(new FileReader(dumpfile));
+	    bin = new BufferedReader(new FileReader(dumpfile));
 	    String line = null;
 	    line = bin.readLine();
 	    String dnt = line;
@@ -222,6 +223,14 @@ public class LegacyFilelistDumpSearcher {
 	    e.printStackTrace();
 	} catch (IOException e) {
 	    e.printStackTrace();
+	} finally {
+		if (bin != null) {
+			try {
+				bin.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 	return results;
 
